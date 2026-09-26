@@ -1,0 +1,13 @@
+# Netlify Redirects Rule File for Palses Pure Salajeet
+
+/home          /index.html          200
+/shop          /shop.html           200
+/product       /product-detail.html 200
+/cart          /cart.html           200
+/about         /about.html          200
+/contact       /contact.html        200
+/login         /login.html          200
+/register      /register.html       200
+
+# Fallback to index.html for any unhandled routes
+/*             /index.html          200

@@ -1,0 +1,6 @@
+{
+  "name": "SALAJIT Admin Dashboard",
+  "description": "Pure Himalayan Power e-commerce admin dashboard and store management panel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

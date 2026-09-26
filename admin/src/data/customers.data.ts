@@ -1,0 +1,58 @@
+import { Customer } from '../types';
+
+export const customersData: Customer[] = [
+  {
+    id: 'cust-1',
+    name: 'Ali Raza',
+    email: 'ali@gmail.com',
+    ordersCount: 3,
+    joinedDate: 'Sep 20, 2025',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
+    totalSpent: 267.0,
+  },
+  {
+    id: 'cust-2',
+    name: 'Sara Khan',
+    email: 'sara@example.com',
+    ordersCount: 5,
+    joinedDate: 'Sep 19, 2025',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
+    totalSpent: 485.0,
+  },
+  {
+    id: 'cust-3',
+    name: 'Usman Tariq',
+    email: 'usman@gmail.com',
+    ordersCount: 2,
+    joinedDate: 'Sep 18, 2025',
+    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=120&q=80',
+    totalSpent: 134.0,
+  },
+  {
+    id: 'cust-4',
+    name: 'Fatima Noor',
+    email: 'fatima@example.com',
+    ordersCount: 4,
+    joinedDate: 'Sep 17, 2025',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=120&q=80',
+    totalSpent: 390.0,
+  },
+  {
+    id: 'cust-5',
+    name: 'Hassan Ali',
+    email: 'hassan@gmail.com',
+    ordersCount: 1,
+    joinedDate: 'Sep 16, 2025',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
+    totalSpent: 45.0,
+  },
+  {
+    id: 'cust-6',
+    name: 'Ayesha Malik',
+    email: 'ayesha.m@example.com',
+    ordersCount: 6,
+    joinedDate: 'Sep 15, 2025',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&q=80',
+    totalSpent: 520.0,
+  },
+];
