@@ -1,0 +1,8 @@
+ipapi.co -> HTTP 429
+   {"reason": "RateLimited", "message": "Please sign up for a paid plan at https://ipapi.co/pricing or contact us for a trial account", "wait": 1.0, "error": true}
+ipwho.is -> HTTP 200
+   { "ip": "39.48.8.227", "success": true, "type": "IPv4", "continent": "Asia", "continent_code": "AS", "country": "Pakistan", "country_code": "PK", "region": "Khyber Pakhtunkhwa", "region_code": "KP", "city": "Abbottabad", "latitude": 34.146326, "longitude": 73.2116839, "is_eu": false, "postal": "22010", "calling_code": "92", "capital":
+ip-api.com -> HTTP 200
+   {"status":"success","country":"Pakistan","countryCode":"PK","region":"KP","regionName":"Khyber Pakhtunkhwa","city":"Abbottabad","zip":"22010","lat":34.144,"lon":73.2167,"timezone":"Asia/Karachi","isp":"Pakistan Telecommuication company limited","org":"Pakistan Telecommuication company limited","as":"AS17557 Pakistan Telecommunication Company Limited","query":"39.48.8.227"}
+freeipapi -> HTTP 200
+   {"ipVersion":4,"ipAddress":"39.48.8.227","latitude":33.6648,"longitude":73.0419,"countryName":"Pakistan","countryCode":"PK","capital":"Islamabad","phoneCodes":[92],"timeZones":["Asia\/Karachi"],"zipCode":null,"cityName":"Islamabad (H 9\/1)","regionName":"Islamabad","regionCode":"IS","continent":"Asia","continentCode":"AS","currencies":["PKR"],"languages":["en","ur"],"asn":"17557","asnOrganization"

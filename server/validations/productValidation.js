@@ -1,7 +1,7 @@
 const { sendError } = require('../utils/responseHandler');
 
 const validateProduct = (req, res, next) => {
-  const { name, category_id, price, sku, main_image } = req.body;
+  const { name, category_id, price, usd_price, sku, main_image } = req.body;
   const errors = [];
 
   if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -14,6 +14,15 @@ const validateProduct = (req, res, next) => {
 
   if (price === undefined || isNaN(Number(price)) || Number(price) < 0) {
     errors.push('A valid non-negative product price is required.');
+  }
+
+  if (
+    usd_price !== undefined &&
+    usd_price !== null &&
+    usd_price !== '' &&
+    (isNaN(Number(usd_price)) || Number(usd_price) < 0)
+  ) {
+    errors.push('USD price must be a valid non-negative number when provided.');
   }
 
   if (!sku || typeof sku !== 'string' || sku.trim().length < 2) {

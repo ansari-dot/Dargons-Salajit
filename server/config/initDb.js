@@ -33,6 +33,7 @@ const initDb = async () => {
     await addColumnIfNotExist('products', 'slug', "VARCHAR(255) NOT NULL DEFAULT 'product'");
     await addColumnIfNotExist('products', 'price', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00');
     await addColumnIfNotExist('products', 'old_price', 'DECIMAL(10,2) NULL');
+    await addColumnIfNotExist('products', 'usd_price', 'DECIMAL(10,2) NULL');
     await addColumnIfNotExist('products', 'vendor', "VARCHAR(100) DEFAULT 'Himalayan Surp'");
     await addColumnIfNotExist('products', 'size', "VARCHAR(50) DEFAULT 'Medium'");
     await addColumnIfNotExist('products', 'rating', 'DECIMAL(3,2) DEFAULT 5.00');
@@ -126,13 +127,23 @@ const initDb = async () => {
       console.warn('Deals table init warning:', dErr.message);
     }
 
+    // Brands table column compatibility (store brand showcase & logo uploads)
+    await addColumnIfNotExist('brands', 'name', "VARCHAR(255) NOT NULL DEFAULT 'Brand'");
+    await addColumnIfNotExist('brands', 'description', 'TEXT NULL');
+    await addColumnIfNotExist('brands', 'logo_url', 'TEXT NULL');
+    await addColumnIfNotExist('brands', 'file_name', 'VARCHAR(255) NULL');
+    await addColumnIfNotExist('brands', 'file_size', 'INT NULL');
+    await addColumnIfNotExist('brands', 'mime_type', 'VARCHAR(100) NULL');
+    await addColumnIfNotExist('brands', 'is_active', 'TINYINT(1) DEFAULT 1');
+
+
     await addColumnIfNotExist('product_images', 'image_url', 'TEXT NULL');
     await addColumnIfNotExist('product_images', 'imageUrl', 'TEXT NULL');
     try { await db.query(`UPDATE product_images SET image_url = imageUrl WHERE image_url IS NULL AND imageUrl IS NOT NULL`); } catch (e) { }
     try { await db.query(`UPDATE product_images SET imageUrl = image_url WHERE imageUrl IS NULL AND image_url IS NOT NULL`); } catch (e) { }
 
     // Auto-fix createdAt, updatedAt, and legacy camelCase column defaults across all database tables
-    const allTables = ['products', 'product_images', 'product_details', 'inventory', 'categories', 'blogs', 'users', 'orders', 'order_items', 'coupons', 'coupon_usages', 'gallery', 'cart_items', 'wishlist'];
+    const allTables = ['products', 'product_images', 'product_details', 'inventory', 'categories', 'blogs', 'users', 'orders', 'order_items', 'coupons', 'coupon_usages', 'gallery', 'brands', 'cart_items', 'wishlist'];
     for (const t of allTables) {
       try { await db.query(`ALTER TABLE ${t} MODIFY COLUMN createdAt TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP`); } catch (e) { }
       try { await db.query(`ALTER TABLE ${t} MODIFY COLUMN updatedAt TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) { }
@@ -178,7 +189,12 @@ const initDb = async () => {
 
     console.log('✅ Database tables & schema migrations initialized successfully.');
   } catch (error) {
-    console.error('❌ Error initializing database:', error.message);
+    const dbErrorCode = error.code || (Array.isArray(error.errors) && error.errors.find((e) => e && e.code)?.code);
+    console.error('❌ Error initializing database:', error.message || dbErrorCode || error.name);
+    if (['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ER_ACCESS_DENIED_ERROR', 'ER_BAD_DB_ERROR'].includes(dbErrorCode)) {
+      console.error(`⚠️  MySQL is not reachable at ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 3306} (${dbErrorCode}).`);
+      console.error('⚠️  Start MySQL (or fix the DB_* values in server/.env) and restart the API — every database endpoint will keep failing until then.');
+    }
   }
 };
 

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS products (
   slug VARCHAR(255) NOT NULL UNIQUE,
   price DECIMAL(10,2) NOT NULL,
   old_price DECIMAL(10,2) NULL,
+  usd_price DECIMAL(10,2) NULL,
   vendor VARCHAR(100) DEFAULT 'Organica-1',
   size ENUM('Small', 'Medium', 'Large') DEFAULT 'Medium',
   rating DECIMAL(3,2) DEFAULT 5.00,
@@ -242,4 +243,19 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_order_id (order_id),
   INDEX idx_tracker (tracker)
+);
+
+-- 17. BRANDS TABLE (Store Brand Showcase & Logo Management)
+CREATE TABLE IF NOT EXISTS brands (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  logo_url TEXT NOT NULL,
+  file_name VARCHAR(255) NULL,
+  file_size INT NULL,
+  mime_type VARCHAR(100) NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_brands_active (is_active)
 );

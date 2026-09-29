@@ -10,6 +10,7 @@ dotenv.config();
 const initDb = require('./config/initDb');
 const errorHandler = require('./middleware/errorHandler');
 const safepayWebhook = require('./controllers/safepayWebhook');
+const router = require('./routes/location.js')
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -33,6 +34,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+
+
 // ── Static Assets ────────────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'views')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -51,6 +54,7 @@ const wishlistRoutes  = require('./routes/wishlistRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const paymentRoutes   = require('./routes/paymentRoutes');
 const dealRoutes      = require('./routes/dealRoutes');
+const brandRoutes     = require('./routes/brandRoutes');
 
 // ── API Endpoints ─────────────────────────────────────────────────────────────
 app.use('/api/auth',      authRoutes);
@@ -66,6 +70,8 @@ app.use('/api/wishlist',  wishlistRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/payments',  paymentRoutes);
 app.use('/api/deals',     dealRoutes);
+app.use('/api/brands',    brandRoutes);
+app.use('/api/location',router)
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -84,6 +90,7 @@ app.use(errorHandler);
 initDb().then(() => {
   app.listen(PORT, () => {
     console.log(`✅ Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+    console.log(`Server is running on port : http://localhost:${PORT}`)
     console.log(`🔔 Safepay webhook endpoint: POST /api/webhooks/safepay`);
   });
 });

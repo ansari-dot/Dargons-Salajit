@@ -10,6 +10,7 @@ export interface ProductItem {
   slug: string;
   price: number;
   old_price?: number | null;
+  usd_price?: number | null;
   vendor?: string;
   size?: string;
   rating?: number;
@@ -33,6 +34,7 @@ export interface CreateProductPayload {
   category_id: number;
   price: number;
   old_price?: number;
+  usd_price?: number;
   vendor?: string;
   size?: string;
   rating?: number;
@@ -52,6 +54,7 @@ export interface UpdateProductPayload {
   category_id?: number;
   price?: number;
   old_price?: number;
+  usd_price?: number;
   vendor?: string;
   size?: string;
   rating?: number;

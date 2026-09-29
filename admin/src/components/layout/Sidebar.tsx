@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Flame,
+  Tag,
 } from 'lucide-react';
 import { BrandLogo } from '../common/BrandLogo';
 
@@ -39,6 +40,7 @@ const mainNavItems: NavItemConfig[] = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Orders', path: '/orders', icon: ShoppingBag, badge: 12 },
   { name: 'Products', path: '/products', icon: Package },
+  { name: 'Upload Brand', path: '/brands/upload', icon: Tag },
   { name: 'Deals & Offers', path: '/deals', icon: Flame },
   { name: 'Customers', path: '/customers', icon: Users },
   { name: 'Inventory', path: '/inventory', icon: Boxes },

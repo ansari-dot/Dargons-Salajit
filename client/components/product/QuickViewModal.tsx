@@ -6,10 +6,12 @@ import Link from 'next/link';
 import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
 import { setQuickViewProduct } from '@/lib/redux/slices/uiSlice';
 import { addToCart } from '@/lib/redux/slices/cartSlice';
+import { formatAmount } from '@/lib/utils/currency';
 
 export default function QuickViewModal() {
   const dispatch = useAppDispatch();
   const product = useAppSelector((state) => state.ui.quickViewProduct);
+  const currency = useAppSelector((state) => state.ui.selectedCurrency);
   const [quantity, setQuantity] = useState(1);
 
   if (!product) return null;
@@ -60,7 +62,7 @@ export default function QuickViewModal() {
             <h2 className="quickview-modal__name">{product.name}</h2>
             
             <div className="quickview-modal__price">
-              ₨{product.price.toLocaleString()}.00
+              {formatAmount(product.price, currency)}
             </div>
 
             <Link href="/shop" className="quickview-modal__features" onClick={handleClose}>

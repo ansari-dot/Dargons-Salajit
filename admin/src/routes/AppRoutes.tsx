@@ -14,6 +14,7 @@ import { MarketingPage } from '../pages/Marketing/Marketing';
 import { BlogPage } from '../pages/Blog/Blog';
 import { SettingsPage } from '../pages/Settings/Settings';
 import { DealsPage } from '../pages/Deals/DealsPage';
+import { UploadBrandPage } from '../pages/Brands/UploadBrandPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -23,6 +24,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="products" element={<ProductsPage />} />
+        <Route path="brands/upload" element={<UploadBrandPage />} />
         <Route path="deals" element={<DealsPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="inventory" element={<InventoryPage />} />

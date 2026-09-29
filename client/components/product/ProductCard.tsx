@@ -8,6 +8,7 @@ import { addToCart, addToCartDb } from '@/lib/redux/slices/cartSlice';
 import { toggleWishlist, toggleWishlistDb } from '@/lib/redux/slices/wishlistSlice';
 import { setQuickViewProduct } from '@/lib/redux/slices/uiSlice';
 import { Product } from '@/lib/redux/slices/productSlice';
+import { formatAmount } from '@/lib/utils/currency';
 
 interface ProductCardProps {
   product: Product;
@@ -17,6 +18,7 @@ interface ProductCardProps {
 export default function ProductCard({ product, viewMode = 'grid' }: ProductCardProps) {
   const dispatch = useAppDispatch();
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+  const currency = useAppSelector((state) => state.ui.selectedCurrency);
   const wishlistItems = useAppSelector((state) => state.wishlist.items);
   const isWishlisted = wishlistItems.some((item) => String(item.id) === String(product.id));
 
@@ -69,11 +71,11 @@ export default function ProductCard({ product, viewMode = 'grid' }: ProductCardP
         <p className="product-card__price">
           {product.oldPrice && (
             <span style={{ textDecoration: 'line-through', color: '#999999', marginRight: '6px', fontWeight: 400 }}>
-              ₨{product.oldPrice.toLocaleString()}.00
+              {formatAmount(product.oldPrice, currency)}
             </span>
           )}
           <span style={{ color: 'var(--olive, #636830)', fontWeight: 600 }}>
-            ₨{product.price.toLocaleString()}.00
+            {formatAmount(product.price, currency)}
           </span>
         </p>
 

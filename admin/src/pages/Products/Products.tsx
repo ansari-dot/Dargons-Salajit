@@ -59,6 +59,7 @@ export const ProductsPage: React.FC = () => {
     category_id: 1,
     price: '',
     old_price: '',
+    usd_price: '',
     vendor: 'Himalayan Surp',
     size: 'Medium',
     rating: '5.0',
@@ -157,6 +158,7 @@ export const ProductsPage: React.FC = () => {
 
     const priceVal = parseFloat(formData.price) || 0;
     const oldPriceVal = formData.old_price ? parseFloat(formData.old_price) : undefined;
+    const usdPriceVal = formData.usd_price ? parseFloat(formData.usd_price) : undefined;
     const stockVal = parseInt(formData.stock_quantity, 10) || 0;
     const ratingVal = parseFloat(formData.rating) || 5.0;
     const defaultImage =
@@ -186,6 +188,7 @@ export const ProductsPage: React.FC = () => {
             category_id: Number(formData.category_id),
             price: priceVal,
             old_price: oldPriceVal,
+            usd_price: usdPriceVal,
             vendor: formData.vendor,
             size: formData.size,
             rating: ratingVal,
@@ -217,6 +220,7 @@ export const ProductsPage: React.FC = () => {
           category_id: Number(formData.category_id),
           price: priceVal,
           old_price: oldPriceVal,
+          usd_price: usdPriceVal,
           vendor: formData.vendor || 'Himalayan Surp',
           size: formData.size || 'Medium',
           rating: ratingVal,
@@ -279,6 +283,7 @@ export const ProductsPage: React.FC = () => {
       category_id: product.category_id || 1,
       price: product.price ? product.price.toString() : '',
       old_price: product.old_price ? product.old_price.toString() : '',
+      usd_price: product.usd_price ? product.usd_price.toString() : '',
       vendor: product.vendor || 'Himalayan Surp',
       size: product.size || 'Medium',
       rating: product.rating ? product.rating.toString() : '5.0',
@@ -309,6 +314,7 @@ export const ProductsPage: React.FC = () => {
       category_id: 1,
       price: '',
       old_price: '',
+      usd_price: '',
       vendor: 'Himalayan Surp',
       size: 'Medium',
       rating: '5.0',
@@ -579,21 +585,46 @@ export const ProductsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Price, Old Price, Stock */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Price (PKR), Price (USD), Old Price, Stock */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    Sale Price (PKR / USD) <span className="text-rose-500">*</span>
+                    Sale Price (PKR) <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    placeholder="2500"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                      ₨
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                      placeholder="2500"
+                      className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Base price — shown to Pakistan visitors</p>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Sale Price (USD)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.usd_price}
+                      onChange={(e) => setFormData({ ...formData, usd_price: e.target.value })}
+                      placeholder="8.99"
+                      className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Optional — shown to overseas visitors</p>
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Compare-At / Old Price</label>
