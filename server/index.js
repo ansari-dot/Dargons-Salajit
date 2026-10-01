@@ -11,7 +11,7 @@ const initDb = require('./config/initDb');
 const { ensureLocalDatabase } = require('./config/ensureLocalDb');
 const errorHandler = require('./middleware/errorHandler');
 const safepayWebhook = require('./controllers/safepayWebhook');
-const router = require('./routes/location.js')
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -56,6 +56,10 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const paymentRoutes   = require('./routes/paymentRoutes');
 const dealRoutes      = require('./routes/dealRoutes');
 const brandRoutes     = require('./routes/brandRoutes');
+const calculatorRoutes        = require('./routes/calculator.route');
+const calculatorRequestRoutes = require('./routes/calculatorRequest.route');
+const router = require('./routes/location.js')
+
 
 // ── API Endpoints ─────────────────────────────────────────────────────────────
 app.use('/api/auth',      authRoutes);
@@ -72,6 +76,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/payments',  paymentRoutes);
 app.use('/api/deals',     dealRoutes);
 app.use('/api/brands',    brandRoutes);
+app.use('/api/calculator', calculatorRoutes);
+app.use('/api/calculator/requests', calculatorRequestRoutes);
 app.use('/api/location',router)
 
 // ── Health check ──────────────────────────────────────────────────────────────

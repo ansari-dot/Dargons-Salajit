@@ -264,3 +264,62 @@ CREATE TABLE IF NOT EXISTS brands (
   updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_brands_active (is_active)
 );
+
+-- 18. CALCULATOR PRODUCT OPTIONS TABLE (Private-label pricing per product / package / fill size)
+CREATE TABLE IF NOT EXISTS calculator_product_options (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  product_id INT NOT NULL,
+  package_type VARCHAR(50) NOT NULL,          -- Jar / Bottle / Pouch
+  fill_size INT NOT NULL,                     -- grams per unit, e.g. 20
+  strength VARCHAR(50) NULL,                  -- optional strength label
+  price_per_unit DECIMAL(10,2) NOT NULL,      -- cost per finished unit (PKR)
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  INDEX idx_cpo_lookup (product_id, package_type, fill_size, is_active)
+);
+
+-- 19. CALCULATOR PACKAGING TABLE (Packaging options & per-unit price for the cost calculator)
+CREATE TABLE IF NOT EXISTS calculator_packaging (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  packaging_type VARCHAR(50) NOT NULL,        -- Jar / Bottle / Pouch
+  price_per_unit DECIMAL(10,2) NOT NULL,      -- cost per packaging unit (PKR)
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_packaging_active (is_active)
+);
+
+-- 20. CALCULATOR REQUESTS TABLE (Saved private-label quotation requests)
+CREATE TABLE IF NOT EXISTS calculator_requests (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NULL,
+  product_id INT NULL,
+  product_name VARCHAR(255) NULL,
+  package_type VARCHAR(50) NULL,
+  fill_size INT NULL,
+  strength VARCHAR(50) NULL,
+  finished_quantity INT NULL,
+  packaging_id INT NULL,
+  packaging_name VARCHAR(255) NULL,
+  packaging_purchase_quantity INT NULL,
+  product_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  packaging_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  printing_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  setup_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  other_costs DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  shipping DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  discount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  estimated_project_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',   -- pending / approved / rejected
+  admin_note TEXT NULL,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL,
+  FOREIGN KEY (packaging_id) REFERENCES calculator_packaging(id) ON DELETE SET NULL,
+  INDEX idx_calc_req_status (status),
+  INDEX idx_calc_req_user (user_id)
+);

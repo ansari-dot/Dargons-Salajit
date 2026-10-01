@@ -13,6 +13,7 @@ export default function NavMenu() {
     { href: '/shop', label: 'SHOP' },
     { href: '/gallery', label: 'GALLERY' },
     { href: '/blogs', label: 'BLOGS' },
+    { href: '/calculator', label: 'CALCULATOR' },
     { href: '/contact', label: 'CONTACT US' },
   ];
 
