@@ -6,6 +6,10 @@ export interface Product {
   sku?: string;
   price: number;
   oldPrice?: number;
+  /** Delivery charge (USD) for customers outside Pakistan — Normal speed */
+  deliveryChargeUsd?: number;
+  /** Delivery charge (USD) for customers outside Pakistan — Urgent speed */
+  urgentDeliveryChargeUsd?: number;
   image: string;
   galleryImages?: string[];
   category: string;
@@ -40,6 +44,16 @@ const initialState: ProductState = {
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+/**
+ * Delivery charges come from the admin product form as optional USD amounts
+ * (Admin → Products → Delivery Charges — Other Countries).
+ */
+const toOptionalUsd = (value: any): number | undefined => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const num = Number(value);
+  return isNaN(num) ? undefined : num;
+};
 
 // Async Thunk: Fetch products live from Express MySQL database
 export const fetchStorefrontProducts = createAsyncThunk(
@@ -102,6 +116,8 @@ export const fetchStorefrontProducts = createAsyncThunk(
           sku: p.sku,
           price: Number(p.price),
           oldPrice: p.old_price ? Number(p.old_price) : undefined,
+          deliveryChargeUsd: toOptionalUsd(p.delivery_charge_usd),
+          urgentDeliveryChargeUsd: toOptionalUsd(p.urgent_delivery_charge_usd),
           image: mainImg,
           galleryImages: gallery.length > 0 ? gallery : [mainImg, '/popular_gold_jar.png', '/popular_drops.png'],
           category: p.category_name || p.category || 'Resin',

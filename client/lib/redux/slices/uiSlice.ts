@@ -7,6 +7,8 @@ export interface UIState {
   isNavDrawerOpen: boolean;
   isCartDropdownOpen: boolean;
   selectedCurrency: string;
+  /** ISO country code detected for the visitor, e.g. 'PK' ('' when unknown) */
+  countryCode: string;
   /** True once the visitor picks a currency manually from the header dropdown */
   isCurrencyManuallySet: boolean;
   quickViewProduct: any | null;
@@ -18,6 +20,7 @@ const initialState: UIState = {
   isNavDrawerOpen: false,
   isCartDropdownOpen: false,
   selectedCurrency: 'PKR',
+  countryCode: '',
   isCurrencyManuallySet: false,
   quickViewProduct: null,
   searchQuery: '',
@@ -26,6 +29,9 @@ const initialState: UIState = {
 /**
  * Async Thunk: Ask the server IP location tracker which currency to use.
  * Pakistan → PKR, every other country → USD.
+ *
+ * The detected country code is stored as well so checkout can apply the correct
+ * delivery charges (flat ₨300 inside Pakistan, courier quote for other countries).
  */
 export const fetchUserCurrency = createAsyncThunk(
   'ui/fetchUserCurrency',
@@ -42,12 +48,12 @@ export const fetchUserCurrency = createAsyncThunk(
 
       // Pakistan → PKR, any other detected country → USD
       if (countryCode) {
-        return countryCode === 'PK' ? 'PKR' : 'USD';
+        return { currency: countryCode === 'PK' ? 'PKR' : 'USD', countryCode };
       }
 
       // Country could not be resolved → keep the storefront's PKR base currency
       // instead of wrongly switching the visitor to USD
-      return 'PKR';
+      return { currency: 'PKR', countryCode: '' };
     } catch (err: any) {
       return rejectWithValue(err.message || 'Unable to detect location');
     }
@@ -89,9 +95,12 @@ export const uiSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder.addCase(fetchUserCurrency.fulfilled, (state, action) => {
+      // Remember the detected country for the delivery charge rules
+      state.countryCode = action.payload.countryCode;
+
       // Never override a currency the visitor selected manually
       if (!state.isCurrencyManuallySet) {
-        state.selectedCurrency = action.payload;
+        state.selectedCurrency = action.payload.currency;
       }
     });
   },

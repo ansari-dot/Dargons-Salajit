@@ -20,6 +20,8 @@ class OrderModel {
         discount_amount = 0.00,
         grand_total,
         payment_method = 'Cash on Delivery',
+        delivery_type = 'normal',
+        delivery_charge = 0.00,
         coupon_code = null,
         couponCode = null,
         items = []
@@ -30,11 +32,15 @@ class OrderModel {
       // 1. Generate unique Order Number (e.g. ORD-100234)
       const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
 
+      // Normalise the delivery option + charge (kept in PKR like every total)
+      const deliveryType = String(delivery_type).toLowerCase() === 'urgent' ? 'urgent' : 'normal';
+      const deliveryCharge = Math.max(0, Number(delivery_charge) || 0);
+
       // 2. Insert Order Header
       const [orderRes] = await connection.query(
-        `INSERT INTO orders (order_number, user_id, first_name, last_name, email, phone, street_address, city, postal_code, subtotal, discount_amount, grand_total, payment_method, order_status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-        [orderNumber, user_id, first_name, last_name, email, phone, street_address, city, postal_code, subtotal, discount_amount, grand_total, payment_method]
+        `INSERT INTO orders (order_number, user_id, first_name, last_name, email, phone, street_address, city, postal_code, subtotal, discount_amount, delivery_charge, grand_total, payment_method, delivery_type, order_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+        [orderNumber, user_id, first_name, last_name, email, phone, street_address, city, postal_code, subtotal, discount_amount, deliveryCharge, grand_total, payment_method, deliveryType]
       );
 
       const orderId = orderRes.insertId;

@@ -60,6 +60,8 @@ export const ProductsPage: React.FC = () => {
     price: '',
     old_price: '',
     usd_price: '',
+    delivery_charge_usd: '',
+    urgent_delivery_charge_usd: '',
     vendor: 'Himalayan Surp',
     size: 'Medium',
     rating: '5.0',
@@ -159,6 +161,12 @@ export const ProductsPage: React.FC = () => {
     const priceVal = parseFloat(formData.price) || 0;
     const oldPriceVal = formData.old_price ? parseFloat(formData.old_price) : undefined;
     const usdPriceVal = formData.usd_price ? parseFloat(formData.usd_price) : undefined;
+    const deliveryChargeVal = formData.delivery_charge_usd
+      ? parseFloat(formData.delivery_charge_usd)
+      : undefined;
+    const urgentDeliveryChargeVal = formData.urgent_delivery_charge_usd
+      ? parseFloat(formData.urgent_delivery_charge_usd)
+      : undefined;
     const stockVal = parseInt(formData.stock_quantity, 10) || 0;
     const ratingVal = parseFloat(formData.rating) || 5.0;
     const defaultImage =
@@ -189,6 +197,8 @@ export const ProductsPage: React.FC = () => {
             price: priceVal,
             old_price: oldPriceVal,
             usd_price: usdPriceVal,
+            delivery_charge_usd: deliveryChargeVal,
+            urgent_delivery_charge_usd: urgentDeliveryChargeVal,
             vendor: formData.vendor,
             size: formData.size,
             rating: ratingVal,
@@ -221,6 +231,8 @@ export const ProductsPage: React.FC = () => {
           price: priceVal,
           old_price: oldPriceVal,
           usd_price: usdPriceVal,
+          delivery_charge_usd: deliveryChargeVal,
+          urgent_delivery_charge_usd: urgentDeliveryChargeVal,
           vendor: formData.vendor || 'Himalayan Surp',
           size: formData.size || 'Medium',
           rating: ratingVal,
@@ -284,6 +296,14 @@ export const ProductsPage: React.FC = () => {
       price: product.price ? product.price.toString() : '',
       old_price: product.old_price ? product.old_price.toString() : '',
       usd_price: product.usd_price ? product.usd_price.toString() : '',
+      delivery_charge_usd:
+        product.delivery_charge_usd !== undefined && product.delivery_charge_usd !== null
+          ? product.delivery_charge_usd.toString()
+          : '',
+      urgent_delivery_charge_usd:
+        product.urgent_delivery_charge_usd !== undefined && product.urgent_delivery_charge_usd !== null
+          ? product.urgent_delivery_charge_usd.toString()
+          : '',
       vendor: product.vendor || 'Himalayan Surp',
       size: product.size || 'Medium',
       rating: product.rating ? product.rating.toString() : '5.0',
@@ -315,6 +335,8 @@ export const ProductsPage: React.FC = () => {
       price: '',
       old_price: '',
       usd_price: '',
+      delivery_charge_usd: '',
+      urgent_delivery_charge_usd: '',
       vendor: 'Himalayan Surp',
       size: 'Medium',
       rating: '5.0',
@@ -488,6 +510,17 @@ export const ProductsPage: React.FC = () => {
                             {formatCurrency(p.old_price)}
                           </p>
                         )}
+                        {(p.delivery_charge_usd || p.urgent_delivery_charge_usd) && (
+                          <p className="text-[10px] text-slate-400">
+                            Delivery (overseas):
+                            {' $'}
+                            {p.delivery_charge_usd ? Number(p.delivery_charge_usd).toFixed(2) : '—'}
+                            {' / $'}
+                            {p.urgent_delivery_charge_usd
+                              ? Number(p.urgent_delivery_charge_usd).toFixed(2)
+                              : '—'}
+                          </p>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span
@@ -647,6 +680,69 @@ export const ProductsPage: React.FC = () => {
                     placeholder="50"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   />
+                </div>
+              </div>
+
+              {/* Delivery Charges for customers OUTSIDE Pakistan (USD) */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800">
+                    Delivery Charges — Other Countries (USD)
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Applied at checkout for customers outside Pakistan. Within Pakistan the flat
+                    ₨300 (Normal) / ₨500 (Urgent) rates are used automatically.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Normal Delivery Charge (USD)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.delivery_charge_usd}
+                        onChange={(e) =>
+                          setFormData({ ...formData, delivery_charge_usd: e.target.value })
+                        }
+                        placeholder="24.00"
+                        className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Standard courier rate for overseas buyers (leave empty to use the store default)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Urgent Delivery Charge (USD)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.urgent_delivery_charge_usd}
+                        onChange={(e) =>
+                          setFormData({ ...formData, urgent_delivery_charge_usd: e.target.value })
+                        }
+                        placeholder="40.00"
+                        className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Priority courier rate for urgent overseas delivery
+                    </p>
+                  </div>
                 </div>
               </div>
 

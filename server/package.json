@@ -4,6 +4,10 @@
   "description": "Express server with MVC structure and MySQL integration",
   "main": "index.js",
   "scripts": {
+    "db:start": "node scripts/localDb.cjs start",
+    "db:stop": "node scripts/localDb.cjs stop",
+    "db:status": "node scripts/localDb.cjs status",
+    "db:remove": "node scripts/localDb.cjs remove",
     "start": "node index.js",
     "dev": "nodemon index.js"
   },

@@ -30,11 +30,11 @@ export const InventoryPage: React.FC = () => {
 
   // Fetch live products & inventory on mount
   useEffect(() => {
-    dispatch(fetchProducts());
+    dispatch(fetchProducts(undefined));
   }, [dispatch]);
 
   const handleSyncInventory = () => {
-    dispatch(fetchProducts());
+    dispatch(fetchProducts(undefined));
   };
 
   // Adjust stock for single item

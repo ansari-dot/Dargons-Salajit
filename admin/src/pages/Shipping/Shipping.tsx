@@ -59,10 +59,10 @@ export const ShippingPage: React.FC = () => {
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-800">Domestic Delivery (Pakistan)</p>
-                <p className="text-[11px] text-slate-400">TCS Courier & Leopard Express · 2-3 Business Days</p>
+                <p className="text-[11px] text-slate-400">TCS Courier & Leopard Express · Normal 2-3 Business Days</p>
               </div>
             </div>
-            <span className="text-xs font-bold text-emerald-600">Free over $50</span>
+            <span className="text-xs font-bold text-emerald-600">₨300 Normal · ₨500 Urgent</span>
           </div>
 
           <div className="py-3 flex items-center justify-between">
@@ -75,7 +75,7 @@ export const ShippingPage: React.FC = () => {
                 <p className="text-[11px] text-slate-400">Aramex Priority Air Cargo · 3-5 Business Days</p>
               </div>
             </div>
-            <span className="text-xs font-bold text-slate-700">$14.99 Standard</span>
+            <span className="text-xs font-bold text-slate-700">Delivery charge entered per order (USD)</span>
           </div>
 
           <div className="py-3 flex items-center justify-between">
@@ -88,7 +88,7 @@ export const ShippingPage: React.FC = () => {
                 <p className="text-[11px] text-slate-400">DHL Express International Tracked · 4-7 Days</p>
               </div>
             </div>
-            <span className="text-xs font-bold text-slate-700">$24.00 Standard</span>
+            <span className="text-xs font-bold text-slate-700">$24.00 default · editable at checkout</span>
           </div>
         </div>
       </Card>

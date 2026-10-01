@@ -29,6 +29,8 @@ const createPayment = async (req, res) => {
       subtotal,
       discount_amount = 0,
       grand_total,
+      delivery_type = 'normal',
+      delivery_charge = 0,
       coupon_code,
       items,
     } = req.body;
@@ -38,6 +40,25 @@ const createPayment = async (req, res) => {
     if (!items || items.length === 0) {
       return sendError(res, 'Cart is empty', 400);
     }
+
+    // ── Delivery option (Normal / Urgent) + delivery charge ───────────────────
+    // Pakistan → flat ₨300 (Normal) / ₨500 (Urgent), other countries → courier
+    // quote entered on checkout. All amounts are stored in PKR.
+    const deliveryType =
+      String(delivery_type).toLowerCase() === 'urgent' ? 'urgent' : 'normal';
+    const deliveryCharge = Math.max(0, Number(delivery_charge) || 0);
+
+    // Recalculate the total Safepay must collect so the delivery charge can never
+    // be dropped from the amount: products − discount + delivery
+    const itemsSubtotal = items.reduce(
+      (sum, item) => sum + (Number(item.unit_price) || 0) * (Number(item.quantity) || 0),
+      0
+    );
+    const orderSubtotal = itemsSubtotal || Number(subtotal) || 0;
+    const orderGrandTotal = Math.max(
+      0,
+      orderSubtotal - (Number(discount_amount) || 0) + deliveryCharge
+    );
 
     // ── Step 1: Create Order in MySQL ──────────────────────────────────────────
     const createdOrder = await OrderModel.createOrder({
@@ -49,10 +70,12 @@ const createPayment = async (req, res) => {
       street_address,
       city,
       postal_code,
-      subtotal,
+      subtotal: orderSubtotal,
       discount_amount,
-      grand_total,
+      grand_total: orderGrandTotal,
       payment_method: 'Safepay',
+      delivery_type: deliveryType,
+      delivery_charge: deliveryCharge,
       coupon_code,
       items,
     });
@@ -62,7 +85,7 @@ const createPayment = async (req, res) => {
 
     // ── Step 2: Create Safepay Tracker ─────────────────────────────────────────
     // Safepay amounts are in the lowest denomination (paisa for PKR → × 100)
-    const amountPaisa = Math.round(Number(grand_total) * 100);
+    const amountPaisa = Math.round(orderGrandTotal * 100);
 
     const trackerResponse = await safepay.payments.session.setup({
       merchant_api_key: process.env.SAFEPAY_API_KEY,
@@ -90,7 +113,7 @@ const createPayment = async (req, res) => {
         `INSERT INTO payment_transactions
            (order_id, provider, tracker, event_type, amount, currency, status)
          VALUES (?, 'safepay', ?, 'session.created', ?, 'PKR', 'pending')`,
-        [orderId, tracker, Number(grand_total)]
+        [orderId, tracker, orderGrandTotal]
       );
     } catch (e) {
       console.warn('payment_transactions log skipped:', e.message);

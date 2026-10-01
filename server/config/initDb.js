@@ -34,6 +34,9 @@ const initDb = async () => {
     await addColumnIfNotExist('products', 'price', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00');
     await addColumnIfNotExist('products', 'old_price', 'DECIMAL(10,2) NULL');
     await addColumnIfNotExist('products', 'usd_price', 'DECIMAL(10,2) NULL');
+    // Delivery charges (USD) applied to customers outside Pakistan
+    await addColumnIfNotExist('products', 'delivery_charge_usd', 'DECIMAL(10,2) NULL');
+    await addColumnIfNotExist('products', 'urgent_delivery_charge_usd', 'DECIMAL(10,2) NULL');
     await addColumnIfNotExist('products', 'vendor', "VARCHAR(100) DEFAULT 'Himalayan Surp'");
     await addColumnIfNotExist('products', 'size', "VARCHAR(50) DEFAULT 'Medium'");
     await addColumnIfNotExist('products', 'rating', 'DECIMAL(3,2) DEFAULT 5.00');
@@ -58,6 +61,7 @@ const initDb = async () => {
 
     await addColumnIfNotExist('inventory', 'product_id', 'INT NULL');
     await addColumnIfNotExist('inventory', 'productId', 'INT NULL');
+    await addColumnIfNotExist('inventory', 'variantId', 'INT NULL');
     try { await db.query(`UPDATE inventory SET product_id = productId WHERE product_id IS NULL AND productId IS NOT NULL`); } catch (e) { }
     try { await db.query(`UPDATE inventory SET productId = product_id WHERE productId IS NULL AND product_id IS NOT NULL`); } catch (e) { }
 
@@ -69,6 +73,9 @@ const initDb = async () => {
     await addColumnIfNotExist('orders', 'payment_status', "ENUM('unpaid', 'paid', 'refunded', 'failed') DEFAULT 'unpaid'");
     await addColumnIfNotExist('orders', 'tracker_token',   'VARCHAR(255) NULL');
     await addColumnIfNotExist('orders', 'safepay_tracker', 'VARCHAR(255) NULL');
+    // Delivery options: Normal / Urgent + the delivery charge collected with the order
+    await addColumnIfNotExist('orders', 'delivery_type',   "ENUM('normal', 'urgent') DEFAULT 'normal'");
+    await addColumnIfNotExist('orders', 'delivery_charge', 'DECIMAL(10,2) DEFAULT 0.00');
 
     // Safepay payment audit log table
     try {

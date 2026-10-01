@@ -25,6 +25,22 @@ const validateProduct = (req, res, next) => {
     errors.push('USD price must be a valid non-negative number when provided.');
   }
 
+  // Delivery charges shown to customers outside Pakistan (USD)
+  for (const [field, label] of [
+    ['delivery_charge_usd', 'Normal delivery charge (USD)'],
+    ['urgent_delivery_charge_usd', 'Urgent delivery charge (USD)'],
+  ]) {
+    const value = req.body[field];
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== '' &&
+      (isNaN(Number(value)) || Number(value) < 0)
+    ) {
+      errors.push(`${label} must be a valid non-negative number when provided.`);
+    }
+  }
+
   if (!sku || typeof sku !== 'string' || sku.trim().length < 2) {
     errors.push('Product SKU is required.');
   }

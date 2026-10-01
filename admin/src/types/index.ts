@@ -38,10 +38,17 @@ export interface Order {
   id: string;
   orderNumber: string;
   customerName: string;
+  email?: string;
   amount: number;
   status: OrderStatus;
   date: string;
   itemsCount?: number;
+  /** Delivery speed picked by the customer: 'normal' | 'urgent' */
+  deliveryType?: string;
+  /** Delivery charge collected with the order (PKR) */
+  deliveryCharge?: number;
+  /** Order total before the delivery charge was added (PKR) */
+  subtotal?: number;
 }
 
 export interface Customer {

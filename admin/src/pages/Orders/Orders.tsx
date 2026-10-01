@@ -145,7 +145,14 @@ export const OrdersPage: React.FC = () => {
               ) : (
                 filteredOrders.map((order: any) => (
                   <tr key={order.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4 font-bold text-slate-900">{order.orderNumber}</td>
+                    <td className="py-3 px-4 font-bold text-slate-900">
+                      {order.orderNumber}
+                      {order.deliveryType === 'urgent' && (
+                        <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
+                          URGENT
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-4">
                       <div className="font-medium text-slate-900">{order.customerName}</div>
                       <div className="text-[11px] text-slate-400">{order.email}</div>
@@ -207,6 +214,18 @@ export const OrdersPage: React.FC = () => {
               <div className="flex justify-between py-1 border-b border-slate-50">
                 <span className="text-slate-500">Payment:</span>
                 <span className="font-semibold text-slate-800">{activeOrder.paymentMethod} ({activeOrder.paymentStatus || 'unpaid'})</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-50">
+                <span className="text-slate-500">Delivery Method:</span>
+                <span className="font-semibold text-slate-800">
+                  {activeOrder.deliveryType === 'urgent' ? 'Urgent Delivery' : 'Normal Delivery'}
+                </span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-50">
+                <span className="text-slate-500">Delivery Charge:</span>
+                <span className="font-semibold text-slate-800">
+                  {formatCurrency(activeOrder.deliveryCharge || 0)}
+                </span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-50">
                 <span className="text-slate-500">Total Amount:</span>

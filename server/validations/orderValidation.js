@@ -12,6 +12,8 @@ const validateOrder = (req, res, next) => {
     street_address,
     city,
     postal_code,
+    delivery_type,
+    delivery_charge,
     items
   } = req.body;
 
@@ -24,6 +26,23 @@ const validateOrder = (req, res, next) => {
   if (!street_address || typeof street_address !== 'string') errors.push('Street address is required.');
   if (!city || typeof city !== 'string') errors.push('City is required.');
   if (!postal_code || typeof postal_code !== 'string') errors.push('Postal code is required.');
+
+  // Delivery: Normal / Urgent speed + the delivery charge (PKR) collected
+  if (
+    delivery_type !== undefined &&
+    delivery_type !== null &&
+    delivery_type !== '' &&
+    !['normal', 'urgent'].includes(String(delivery_type).toLowerCase())
+  ) {
+    errors.push("Delivery type must be either 'normal' or 'urgent'.");
+  }
+
+  if (delivery_charge !== undefined && delivery_charge !== null && delivery_charge !== '') {
+    const charge = Number(delivery_charge);
+    if (isNaN(charge) || charge < 0 || charge > 100000) {
+      errors.push('Delivery charge must be a valid amount between 0 and 100,000.');
+    }
+  }
 
   if (!Array.isArray(items) || items.length === 0) {
     errors.push('Order must contain at least one item.');

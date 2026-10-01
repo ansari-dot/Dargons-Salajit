@@ -9,12 +9,20 @@ class OrderService {
     }
 
     const discountAmount = orderData.discount_amount || 0;
-    const grandTotal = calculatedSubtotal - discountAmount;
+
+    // Delivery charges are collected on top of the products
+    const deliveryCharge = Math.max(0, Number(orderData.delivery_charge) || 0);
+    const deliveryType =
+      String(orderData.delivery_type || 'normal').toLowerCase() === 'urgent' ? 'urgent' : 'normal';
+
+    const grandTotal = calculatedSubtotal - discountAmount + deliveryCharge;
 
     const payload = {
       ...orderData,
       user_id: userId || orderData.user_id || null,
       subtotal: calculatedSubtotal,
+      delivery_type: deliveryType,
+      delivery_charge: deliveryCharge,
       grand_total: grandTotal
     };
 

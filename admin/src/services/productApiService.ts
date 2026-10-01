@@ -11,6 +11,8 @@ export interface ProductItem {
   price: number;
   old_price?: number | null;
   usd_price?: number | null;
+  delivery_charge_usd?: number | null;
+  urgent_delivery_charge_usd?: number | null;
   vendor?: string;
   size?: string;
   rating?: number;
@@ -35,6 +37,8 @@ export interface CreateProductPayload {
   price: number;
   old_price?: number;
   usd_price?: number;
+  delivery_charge_usd?: number;
+  urgent_delivery_charge_usd?: number;
   vendor?: string;
   size?: string;
   rating?: number;
@@ -55,6 +59,8 @@ export interface UpdateProductPayload {
   price?: number;
   old_price?: number;
   usd_price?: number;
+  delivery_charge_usd?: number;
+  urgent_delivery_charge_usd?: number;
   vendor?: string;
   size?: string;
   rating?: number;

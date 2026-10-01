@@ -8,6 +8,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const initDb = require('./config/initDb');
+const { ensureLocalDatabase } = require('./config/ensureLocalDb');
 const errorHandler = require('./middleware/errorHandler');
 const safepayWebhook = require('./controllers/safepayWebhook');
 const router = require('./routes/location.js')
@@ -74,8 +75,24 @@ app.use('/api/brands',    brandRoutes);
 app.use('/api/location',router)
 
 // ── Health check ──────────────────────────────────────────────────────────────
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'OK', message: 'Palses API running' });
+app.get('/api/health', async (req, res) => {
+  const db = require('./config/db');
+  let database = 'connected';
+  let hint;
+
+  try {
+    await db.query('SELECT 1');
+  } catch (error) {
+    database = 'disconnected';
+    hint = 'Run `npm run db:start` inside the server folder to boot the portable database.';
+  }
+
+  res.status(200).json({
+    status: 'OK',
+    message: 'Palses API running',
+    database,
+    ...(hint && { hint }),
+  });
 });
 
 // ── Main HTML view ────────────────────────────────────────────────────────────
@@ -87,10 +104,23 @@ app.get('/', (req, res) => {
 app.use(errorHandler);
 
 // ── Initialize DB & Start Server ──────────────────────────────────────────────
-initDb().then(() => {
+// 1. Make sure a database is reachable (boots the portable local one if needed)
+// 2. Create / upgrade the schema — but never keep the API from starting
+const listen = () => {
   app.listen(PORT, () => {
     console.log(`✅ Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
     console.log(`Server is running on port : http://localhost:${PORT}`)
     console.log(`🔔 Safepay webhook endpoint: POST /api/webhooks/safepay`);
   });
-});
+};
+
+ensureLocalDatabase()
+  .then(() => initDb())
+  .then(() => console.log('✅ Database schema is ready'))
+  .catch((error) => {
+    console.error(`⚠️  Database not ready: ${error.message}`);
+    console.error('    Fix it with:  npm run db:start        (portable project-local database)');
+    console.error('    or install MySQL/MariaDB and match DB_USER / DB_PASSWORD in server/.env');
+    console.error('    The API starts anyway — database endpoints reply with a clear error.');
+  })
+  .finally(listen);

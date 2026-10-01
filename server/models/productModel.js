@@ -241,6 +241,8 @@ class ProductModel {
         price,
         old_price = null,
         usd_price = null,
+        delivery_charge_usd = null,
+        urgent_delivery_charge_usd = null,
         vendor = 'Himalayan Surp',
         size = 'Medium',
         rating = 5.0,
@@ -256,9 +258,9 @@ class ProductModel {
 
       // 1. Insert Base Product
       const [pRes] = await connection.query(
-        `INSERT INTO products (category_id, sku, name, slug, price, old_price, usd_price, vendor, size, rating, main_image)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [category_id, sku, name, slug, price, old_price, usd_price, vendor, size, rating, main_image]
+        `INSERT INTO products (category_id, sku, name, slug, price, old_price, usd_price, delivery_charge_usd, urgent_delivery_charge_usd, vendor, size, rating, main_image)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [category_id, sku, name, slug, price, old_price, usd_price, delivery_charge_usd, urgent_delivery_charge_usd, vendor, size, rating, main_image]
       );
       const productId = pRes.insertId;
 
@@ -312,7 +314,7 @@ class ProductModel {
     try {
       await connection.beginTransaction();
 
-      const allowedFields = ['category_id', 'sku', 'name', 'slug', 'price', 'old_price', 'usd_price', 'vendor', 'size', 'rating', 'main_image', 'is_active'];
+      const allowedFields = ['category_id', 'sku', 'name', 'slug', 'price', 'old_price', 'usd_price', 'delivery_charge_usd', 'urgent_delivery_charge_usd', 'vendor', 'size', 'rating', 'main_image', 'is_active'];
       const fields = [];
       const values = [];
 
