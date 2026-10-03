@@ -9579,7 +9579,9 @@ img {
 .brand-logos-track {
   display: flex;
   align-items: center;
-  gap: 72px;
+  /* No `gap`: the item margin means translateX(-50%) lands exactly on one full
+     period, so the loop is seamless for ANY logo count or width. */
+  gap: 0;
   width: max-content;
   animation: brandMarqueeRightToLeft 30s linear infinite;
   will-change: transform;
@@ -9593,6 +9595,8 @@ img {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 36px + 36px = the previous 72px spacing, but seamlessly loopable */
+  margin: 0 36px;
   opacity: 0.55;
   transition: opacity 0.3s ease, transform 0.3s ease;
   cursor: pointer;
@@ -9601,6 +9605,24 @@ img {
 .brand-logo-item:hover {
   opacity: 1;
   transform: scale(1.08);
+}
+
+/* Logo uploaded from Admin → Brands → Upload Brand */
+.brand-logo-item__img {
+  height: 40px;
+  width: auto;
+  max-width: 140px;
+  object-fit: contain;
+  /* Keeps every uploaded logo looking like one uniform strip; colour returns
+     on hover. */
+  filter: grayscale(1);
+  transition: filter 0.3s ease;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.brand-logo-item:hover .brand-logo-item__img {
+  filter: grayscale(0);
 }
 
 /* ── HOME BLOG POSTS SECTION (Matching Reference Screenshot) ── */

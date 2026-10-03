@@ -106,7 +106,6 @@ let rateCache = {
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-/** ISO country code → currency code (Pakistan → PKR, Arab → local, else USD). */
 const getCurrencyFromCountryCode = (countryCode) => {
     const code = String(countryCode || "").trim().toUpperCase();
 

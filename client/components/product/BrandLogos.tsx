@@ -1,84 +1,78 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
+import {
+  fetchActiveBrands,
+  selectBrands,
+} from '@/lib/redux/slices/brandSlice';
 
-const brandLogos = [
-  {
-    name: 'Louis Vuitton',
-    svg: (
-      <svg viewBox="0 0 100 40" width="90" height="36" fill="#888888">
-        <text x="50%" y="45%" textAnchor="middle" dominantBaseline="middle" fontFamily="serif" fontSize="22" fontWeight="700">LV</text>
-        <text x="50%" y="82%" textAnchor="middle" dominantBaseline="middle" fontFamily="sans-serif" fontSize="7" letterSpacing="1">LOUIS VUITTON</text>
-      </svg>
-    ),
-  },
-  {
-    name: 'Chanel',
-    svg: (
-      <svg viewBox="0 0 100 40" width="100" height="36" fill="#888888">
-        <circle cx="44" cy="14" r="10" fill="none" stroke="#888888" strokeWidth="2.5" />
-        <circle cx="56" cy="14" r="10" fill="none" stroke="#888888" strokeWidth="2.5" />
-        <text x="50%" y="82%" textAnchor="middle" dominantBaseline="middle" fontFamily="sans-serif" fontSize="8" fontWeight="700" letterSpacing="2">CHANEL</text>
-      </svg>
-    ),
-  },
-  {
-    name: 'Wilson',
-    svg: (
-      <svg viewBox="0 0 100 40" width="100" height="36" fill="#888888">
-        <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle" fontFamily="serif" fontStyle="italic" fontSize="22" fontWeight="700" letterSpacing="-1">Wilson</text>
-      </svg>
-    ),
-  },
-  {
-    name: 'Dolce & Gabbana',
-    svg: (
-      <svg viewBox="0 0 110 40" width="110" height="36" fill="#888888">
-        <text x="50%" y="45%" textAnchor="middle" dominantBaseline="middle" fontFamily="sans-serif" fontSize="20" fontWeight="800">D&amp;G</text>
-        <text x="50%" y="82%" textAnchor="middle" dominantBaseline="middle" fontFamily="sans-serif" fontSize="6" letterSpacing="1.5">DOLCE &amp; GABBANA</text>
-      </svg>
-    ),
-  },
-  {
-    name: 'Hermes Paris',
-    svg: (
-      <svg viewBox="0 0 110 40" width="110" height="36" fill="#888888">
-        <path d="M45 10 h20 v2 h-20 z M48 6 h14 v2 h-14 z" fill="#888888" />
-        <text x="50%" y="62%" textAnchor="middle" dominantBaseline="middle" fontFamily="serif" fontSize="12" fontWeight="700" letterSpacing="1.5">HERMÈS</text>
-        <text x="50%" y="85%" textAnchor="middle" dominantBaseline="middle" fontFamily="sans-serif" fontSize="6" letterSpacing="2">PARIS</text>
-      </svg>
-    ),
-  },
-  {
-    name: 'Organica',
-    svg: (
-      <svg viewBox="0 0 110 40" width="110" height="36" fill="#888888">
-        <text x="50%" y="55%" textAnchor="middle" dominantBaseline="middle" fontFamily="serif" fontStyle="italic" fontSize="18" fontWeight="700">Organica</text>
-      </svg>
-    ),
-  },
-  {
-    name: 'Himalayan Pure',
-    svg: (
-      <svg viewBox="0 0 120 40" width="120" height="36" fill="#888888">
-        <path d="M50 16 L60 4 L70 16 Z" fill="none" stroke="#888888" strokeWidth="2" />
-        <text x="50%" y="78%" textAnchor="middle" dominantBaseline="middle" fontFamily="sans-serif" fontSize="7" fontWeight="700" letterSpacing="1.5">HIMALAYAN PURE</text>
-      </svg>
-    ),
-  },
-];
+/**
+ * How many logos one half of the marquee should hold.
+ * The track is duplicated and animated with `translateX(-50%)`, so one half
+ * must be wide enough to overflow the viewport — otherwise the strip would run
+ * out of logos and show a gap on wide screens.
+ */
+const MIN_LOGOS_PER_HALF = 8;
 
+/**
+ * Continuous brand-logo marquee for the home page.
+ *
+ * The logos are the images the admin uploaded in
+ * *Admin → Brands → Upload Brand* (`POST /api/brands`, `GET /api/brands?active=true`).
+ * Inactive brands are filtered out on the API, so hiding/deleting a brand in the
+ * admin panel removes it from the slider automatically.
+ */
 export default function BrandLogos() {
-  // Duplicated list for seamless infinite marquee scrolling loop
-  const doubleLogos = [...brandLogos, ...brandLogos];
+  const dispatch = useAppDispatch();
+  const brands = useAppSelector(selectBrands);
+
+  useEffect(() => {
+    dispatch(fetchActiveBrands());
+  }, [dispatch]);
+
+  /**
+   * The CSS animates the track from 0 to -50%, so the list is repeated to fill
+   * one half and then duplicated — that makes the loop perfectly seamless
+   * whether there is 1 uploaded logo or 20.
+   */
+  const marqueeLogos = useMemo(() => {
+    if (brands.length === 0) return [];
+
+    const repeats = Math.max(1, Math.ceil(MIN_LOGOS_PER_HALF / brands.length));
+    const half = Array.from({ length: repeats }, () => brands).flat();
+
+    return [...half, ...half];
+  }, [brands]);
+
+  // No brands uploaded yet → keep the section out of the layout entirely.
+  if (marqueeLogos.length === 0) return null;
 
   return (
-    <section className="brand-logos-section">
+    <section className="brand-logos-section" aria-label="Our brands">
       <div className="brand-logos-viewport">
         <div className="brand-logos-track">
-          {doubleLogos.map((brand, index) => (
-            <div key={`${brand.name}-${index}`} className="brand-logo-item" title={brand.name}>
-              {brand.svg}
+          {marqueeLogos.map((brand, index) => (
+            <div
+              key={`${brand.id}-${index}`}
+              className="brand-logo-item"
+              title={brand.name}
+            >
+              {/* Plain <img>: the logo lives on the API host, which is not part
+                  of next.config's image domains. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={brand.logoUrl}
+                alt={brand.name || 'Brand logo'}
+                className="brand-logo-item__img"
+                loading="lazy"
+                draggable={false}
+                onError={(event) => {
+                  // Hide a logo that fails to load instead of showing a
+                  // broken-image placeholder in the slider.
+                  event.currentTarget.style.display = 'none';
+                }}
+              />
             </div>
           ))}
         </div>
