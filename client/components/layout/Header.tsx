@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
@@ -10,6 +10,7 @@ import {
   setSearchQuery,
 } from '@/lib/redux/slices/uiSlice';
 import { selectCartCount } from '@/lib/redux/slices/cartSlice';
+import { SUPPORTED_CURRENCIES, getCurrencyName } from '@/lib/utils/currency';
 import NavMenu from './NavMenu';
 import MiniCartDropdown from '../cart/MiniCartDropdown';
 
@@ -17,8 +18,11 @@ export default function Header() {
   const dispatch = useAppDispatch();
   const cartCount = useAppSelector(selectCartCount);
   const currency = useAppSelector((state) => state.ui.selectedCurrency);
+  const currencyName = useAppSelector((state) => state.ui.currencyName);
   const searchQuery = useAppSelector((state) => state.ui.searchQuery);
   const user = useAppSelector((state) => state.auth.user);
+
+  const [isCurrencyMenuOpen, setIsCurrencyMenuOpen] = useState(false);
 
   return (
     <header className="header">
@@ -55,11 +59,110 @@ export default function Header() {
               Order online or call us <span>+92 300 1234567</span>
             </div>
             <div className="header__meta-links">
-              <div
-                className="header__dropdown"
-                onClick={() => dispatch(setCurrency(currency === 'PKR' ? 'USD' : 'PKR'))}
-              >
-                <span>{currency}</span> <i className="fa-solid fa-chevron-down"></i>
+              {/* Currency picker — shows the detected currency AND its name */}
+              <div className="header__dropdown" style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsCurrencyMenuOpen((open) => !open)}
+                  aria-haspopup="listbox"
+                  aria-expanded={isCurrencyMenuOpen}
+                  aria-label={`Currency: ${currency} (${currencyName})`}
+                  title={`${currency} — ${currencyName}`}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'inherit',
+                    font: 'inherit',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: 0,
+                  }}
+                >
+                  <span>{currency}</span> <i className="fa-solid fa-chevron-down"></i>
+                </button>
+
+                {isCurrencyMenuOpen && (
+                  <>
+                    <div
+                      onClick={() => setIsCurrencyMenuOpen(false)}
+                      style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                    />
+
+                    <ul
+                      role="listbox"
+                      aria-label="Select currency"
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 8px)',
+                        left: 0,
+                        zIndex: 50,
+                        minWidth: '250px',
+                        maxHeight: '330px',
+                        overflowY: 'auto',
+                        margin: 0,
+                        padding: '6px',
+                        listStyle: 'none',
+                        background: '#fff',
+                        border: '1px solid #e2e2e2',
+                        borderRadius: '8px',
+                        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.12)',
+                      }}
+                    >
+                      <li
+                        style={{
+                          padding: '8px 10px 6px',
+                          fontSize: '0.68rem',
+                          letterSpacing: '0.05em',
+                          textTransform: 'uppercase',
+                          color: '#8a8a8a',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Current: {currency} · {currencyName}
+                      </li>
+
+                      {SUPPORTED_CURRENCIES.map((code) => {
+                        const isActive = code === currency;
+                        return (
+                          <li key={code}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={isActive}
+                              onClick={() => {
+                                dispatch(setCurrency(code));
+                                setIsCurrencyMenuOpen(false);
+                              }}
+                              style={{
+                                width: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '12px',
+                                padding: '8px 10px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                background: isActive ? '#f4f6ea' : 'transparent',
+                                color: isActive ? '#636830' : '#333',
+                                fontWeight: isActive ? 700 : 500,
+                                fontSize: '0.85rem',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                              }}
+                            >
+                              <span>{code}</span>
+                              <span style={{ color: '#777', fontWeight: 400 }}>
+                                {getCurrencyName(code)}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                )}
               </div>
               <div className="header__dropdown">
                 <Link href={user ? '/account' : '/login'}>

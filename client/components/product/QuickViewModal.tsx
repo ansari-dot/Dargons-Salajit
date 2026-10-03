@@ -62,7 +62,11 @@ export default function QuickViewModal() {
             <h2 className="quickview-modal__name">{product.name}</h2>
             
             <div className="quickview-modal__price">
-              {formatAmount(product.price, currency)}
+              {formatAmount(
+                product.price,
+                currency,
+                currency === 'USD' ? product.usdPrice : undefined
+              )}
             </div>
 
             <Link href="/shop" className="quickview-modal__features" onClick={handleClose}>

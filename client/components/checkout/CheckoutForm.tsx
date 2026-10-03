@@ -4,14 +4,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
 import { selectCartItems, selectCartSubtotal, clearCart } from '@/lib/redux/slices/cartSlice';
 import { fetchStorefrontProducts } from '@/lib/redux/slices/productSlice';
-import { formatAmount } from '@/lib/utils/currency';
+import { formatAmount, fromPkr, getCurrencyLabel } from '@/lib/utils/currency';
 import {
   DELIVERY_TYPES,
   DeliveryType,
-  INTERNATIONAL_DEFAULT_DELIVERY_USD,
+  defaultInternationalCharge,
   getDeliveryTypeLabel,
   isPakistanCustomer,
   resolveDeliveryCharge,
+  roundForCurrency,
+  usdToPkrAmount,
 } from '@/lib/utils/delivery';
 
 export default function CheckoutForm() {
@@ -22,6 +24,7 @@ export default function CheckoutForm() {
   const discountAmount = useAppSelector((state) => state.cart.discountAmount);
   const token = useAppSelector((state) => state.auth.token);
   const currency = useAppSelector((state) => state.ui.selectedCurrency);
+  const currencyName = useAppSelector((state) => state.ui.currencyName);
 
   // Country detected by the server IP tracker: Pakistan keeps the flat ₨300/₨500
   // delivery charges, every other customer enters the courier charge below.
@@ -31,9 +34,9 @@ export default function CheckoutForm() {
 
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'safepay'>('safepay');
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('normal');
-  const [internationalDeliveryUsd, setInternationalDeliveryUsd] = useState<string>(
-    String(INTERNATIONAL_DEFAULT_DELIVERY_USD)
-  );
+  // Courier charge for customers outside Pakistan, in THEIR display currency
+  // (USD, AED, SAR, …). It is converted back to PKR when the order is sent.
+  const [internationalDeliveryCharge, setInternationalDeliveryCharge] = useState('');
   /** True once the overseas customer edits the delivery charge themselves */
   const [isOverseasChargeEdited, setIsOverseasChargeEdited] = useState(false);
   const [isOrdered, setIsOrdered] = useState(false);
@@ -69,13 +72,25 @@ export default function CheckoutForm() {
     };
   }, [cartItems, products]);
 
-  /** Overseas charge for the selected speed: product setting first, then the store default */
+  /**
+   * Overseas charge for the selected speed, expressed in the customer's own
+   * currency: the per-product setting (stored in USD) first, then the store
+   * default (USD 24) — both converted from PKR into the display currency.
+   */
   const getOverseasCharge = (type: DeliveryType): number => {
-    const configured =
+    const configuredUsd =
       type === 'urgent'
         ? configuredCharges.urgent ?? configuredCharges.normal
         : configuredCharges.normal;
-    return configured ?? INTERNATIONAL_DEFAULT_DELIVERY_USD;
+
+    if (configuredUsd && configuredUsd > 0) {
+      return roundForCurrency(
+        fromPkr(usdToPkrAmount(configuredUsd), currency),
+        currency
+      );
+    }
+
+    return defaultInternationalCharge(currency);
   };
 
   // The catalog is needed to read the per-product delivery charges
@@ -85,17 +100,24 @@ export default function CheckoutForm() {
     }
   }, [dispatch, products.length]);
 
+  // A currency change (VPN flip or a pick in the header) invalidates a manually
+  // edited amount — otherwise a number typed in AED would be reused as USD.
+  useEffect(() => {
+    setIsOverseasChargeEdited(false);
+  }, [currency]);
+
   // Keep the overseas charge in sync with the selected speed until the customer
   // changes the field manually
   useEffect(() => {
     if (isPakistan || isOverseasChargeEdited) return;
-    setInternationalDeliveryUsd(String(getOverseasCharge(deliveryType)));
+    setInternationalDeliveryCharge(String(getOverseasCharge(deliveryType)));
   }, [
     isPakistan,
     isOverseasChargeEdited,
     deliveryType,
     configuredCharges.normal,
     configuredCharges.urgent,
+    currency,
   ]);
 
   // Delivery charge of this order (PKR base): ₨300 Normal / ₨500 Urgent inside
@@ -103,7 +125,8 @@ export default function CheckoutForm() {
   const deliveryCharge = resolveDeliveryCharge({
     isPakistan,
     deliveryType,
-    internationalChargeUsd: internationalDeliveryUsd,
+    internationalCharge: internationalDeliveryCharge,
+    currency,
   });
 
   const grandTotal = Math.max(0, subtotal - discountAmount) + deliveryCharge;
@@ -121,8 +144,8 @@ export default function CheckoutForm() {
 
     // Customers outside Pakistan must provide the courier charge for their country
     if (!isPakistan) {
-      const enteredCharge = Number(internationalDeliveryUsd);
-      if (internationalDeliveryUsd.trim() === '' || isNaN(enteredCharge) || enteredCharge < 0) {
+      const enteredCharge = Number(internationalDeliveryCharge);
+      if (internationalDeliveryCharge.trim() === '' || isNaN(enteredCharge) || enteredCharge < 0) {
         setErrorMessage('Please enter the delivery charge quoted for your country.');
         return;
       }
@@ -372,7 +395,8 @@ export default function CheckoutForm() {
                     resolveDeliveryCharge({
                       isPakistan,
                       deliveryType: option.value,
-                      internationalChargeUsd: internationalDeliveryUsd
+                      internationalCharge: internationalDeliveryCharge,
+                      currency
                     }),
                     currency
                   )}
@@ -385,23 +409,23 @@ export default function CheckoutForm() {
           {!isPakistan && (
             <div style={{ marginTop: '18px', padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
-                Delivery Charge (USD) *
+                Delivery Charge ({getCurrencyLabel(currency)}) *
               </label>
               <input
                 type="number"
                 min="0"
                 step="1"
-                name="delivery_charge_usd"
-                value={internationalDeliveryUsd}
+                name="delivery_charge"
+                value={internationalDeliveryCharge}
                 onChange={(e) => {
-                  setInternationalDeliveryUsd(e.target.value);
+                  setInternationalDeliveryCharge(e.target.value);
                   setIsOverseasChargeEdited(true);
                 }}
                 style={{ width: '100%', padding: '10px 14px', border: '1px solid #ccc', borderRadius: '4px' }}
               />
               <p style={{ fontSize: '0.75rem', color: '#666', margin: '6px 0 0 0' }}>
-                Deliveries for countries outside Pakistan are charged in USD. Current courier charge for
-                this order is ${getOverseasCharge(deliveryType).toFixed(2)}
+                Deliveries outside Pakistan are charged in your local currency ({currencyName}).
+                Current courier charge for this order is {getOverseasCharge(deliveryType).toFixed(2)} {currency}
                 {configuredCharges.normal || configuredCharges.urgent
                   ? ' (set on the product)'
                   : ' (store default)'}

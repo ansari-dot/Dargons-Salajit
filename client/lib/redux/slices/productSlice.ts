@@ -6,6 +6,10 @@ export interface Product {
   sku?: string;
   price: number;
   oldPrice?: number;
+  /** Admin-entered price in USD (used when the visitor is billed in USD) */
+  usdPrice?: number;
+  /** Admin-entered old price in USD */
+  oldUsdPrice?: number;
   /** Delivery charge (USD) for customers outside Pakistan — Normal speed */
   deliveryChargeUsd?: number;
   /** Delivery charge (USD) for customers outside Pakistan — Urgent speed */
@@ -116,6 +120,7 @@ export const fetchStorefrontProducts = createAsyncThunk(
           sku: p.sku,
           price: Number(p.price),
           oldPrice: p.old_price ? Number(p.old_price) : undefined,
+          usdPrice: toOptionalUsd(p.usd_price),
           deliveryChargeUsd: toOptionalUsd(p.delivery_charge_usd),
           urgentDeliveryChargeUsd: toOptionalUsd(p.urgent_delivery_charge_usd),
           image: mainImg,

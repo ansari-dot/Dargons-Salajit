@@ -71,11 +71,11 @@ export default function ProductCard({ product, viewMode = 'grid' }: ProductCardP
         <p className="product-card__price">
           {product.oldPrice && (
             <span style={{ textDecoration: 'line-through', color: '#999999', marginRight: '6px', fontWeight: 400 }}>
-              {formatAmount(product.oldPrice, currency)}
+              {formatAmount(product.oldPrice, currency, currency === 'USD' ? product.oldUsdPrice : undefined)}
             </span>
           )}
           <span style={{ color: 'var(--olive, #636830)', fontWeight: 600 }}>
-            {formatAmount(product.price, currency)}
+            {formatAmount(product.price, currency, currency === 'USD' ? product.usdPrice : undefined)}
           </span>
         </p>
 

@@ -28,12 +28,58 @@ Prefer your own MySQL/MariaDB? Install it, make sure it listens on the port and
 match `DB_USER` / `DB_PASSWORD` / `DB_NAME` in `server/.env` — the portable one is
 then ignored. `GET /api/health` reports `"database": "connected"` when all is well.
 
+## Currency detection (VPN aware)
+
+The storefront currency always follows the visitor's **current public IP**:
+
+1. The browser resolves its own public IP with `https://api.ipify.org?format=json`.
+2. It calls the backend: `GET /api/location?ip=<browser ip>` (`cache: "no-store"`).
+3. The backend geolocates exactly that IP (ipwho.is → ip-api.com → freeipapi.com)
+   and answers with `location.countryCode` + `currency`.
+4. **Pakistan → `PKR` · Arab League countries → their local currency ·
+   every other country → `USD`.**
+
+### Which currency does a visitor see?
+
+Prices are stored in **PKR** (the base currency) and converted for display with a
+live exchange rate — the backend caches `open.er-api.com/v6/latest/PKR` for
+10 minutes and also ships an offline fallback table. `GET /api/location` returns
+the currency code, its **full name**, the rate and the rate table:
+
+| Detected country | Currency | Example price |
+| --- | --- | --- |
+| Pakistan | `PKR` | `₨1,299.00` |
+| UAE · Saudi Arabia · Qatar · Kuwait · Bahrain · Oman · Jordan · Lebanon · Syria · Iraq · Palestine · Egypt · Libya · Tunisia · Algeria · Morocco · Sudan · Yemen · Mauritania · Somalia · Djibouti · Comoros | `AED` `SAR` `QAR` `KWD` `BHD` `OMR` `JOD` `LBP` `SYP` `IQD` `ILS` `EGP` `LYD` `TND` `DZD` `MAD` `SDG` `YER` `MRU` `SOS` `DJF` `KMF` | `AED 17.23` |
+| Every other country | `USD` | `$4.67` |
+
+- The header currency picker lists **every supported currency with its name**
+  (`AED — UAE Dirham`, `KWD — Kuwaiti Dinar`, …).
+- KWD · BHD · OMR · JOD · LYD · TND · IQD use **3 decimals**; DJF · KMF use
+  **0**; everything else uses 2 — the currency's real ISO 4217 minor units.
+- `currencies.ts` / `currencyExchange.service.js` hold the country → currency map,
+  the names and the fallback rates and must stay in sync.
+
+`client/components/providers/StoreProvider.tsx` re-detects **every 10 seconds**
+(plus on tab focus / visibility / reconnect), so turning a VPN on or off while
+the page is open switches every price component with no page refresh.
+
+- Single source of truth: `state.ui.selectedCurrency` (+ `currencyName` /
+  `currencyRate`) in Redux (`uiSlice`).
+- Nothing is persisted in `localStorage`, so a stale value can never override a
+  freshly detected currency.
+- A manual choice from the header dropdown survives polling only while the
+  detected country stays the same; a real country change always wins.
+- The API never uses its own (server) public IP and refuses to guess when no
+  usable browser IP is supplied.
+
 ## Delivery charges
 
 - **Pakistan** (auto-detected via `/api/location`): flat **₨300 Normal / ₨500 Urgent**.
-- **Other countries**: the courier charge in **USD**, set per product in
+- **Other countries**: the courier charge is shown and entered in the customer's
+  **own display currency** (USD, AED, SAR, …) at checkout, and converted back to
+  PKR for storage. The per-product default is set in
   *Admin → Products → Add New Product → “Delivery Charges — Other Countries (USD)”*
-  (Normal + Urgent), used at checkout and still editable there.
+  (Normal + Urgent) and is converted into that currency.
 - Order totals are `products − discount + delivery`; admins see the delivery
   method/charge on every order.
 
