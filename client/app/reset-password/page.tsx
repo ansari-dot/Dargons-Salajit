@@ -3,13 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Lock, Eye, EyeOff, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import AuthLayout from '@/components/auth/AuthLayout';
+import { useToast } from '@/components/ui/Toast';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const toast = useToast();
 
   const [token, setToken] = useState('');
   const [hasToken, setHasToken] = useState(true);
@@ -17,8 +19,7 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
 
   // Pull the reset token from the emailed link (?token=…)
   useEffect(() => {
@@ -28,33 +29,32 @@ export default function ResetPasswordPage() {
       setToken(tokenParam);
     } else {
       setHasToken(false);
-      setError('This reset link is invalid. Please request a new one.');
+      toast.error('This reset link is invalid. Please request a new one.', 'Invalid link');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // After a successful reset → send the user to login
   useEffect(() => {
-    if (!success) return;
+    if (!done) return;
     const timer = setTimeout(() => router.push('/login'), 2500);
     return () => clearTimeout(timer);
-  }, [success, router]);
+  }, [done, router]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!token || !password) return;
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+      toast.warning('Password must be at least 6 characters long.', 'Weak password');
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match. Please re-enter them.');
+      toast.warning('Passwords do not match. Please re-enter them.', 'Mismatch');
       return;
     }
 
     setIsLoading(true);
-    setError(null);
-    setSuccess(null);
     try {
       const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
         method: 'POST',
@@ -64,13 +64,17 @@ export default function ResetPasswordPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.errors ? data.errors.join(', ') : data.message || 'Could not reset the password. Please try again.');
+        toast.error(
+          data.errors ? data.errors.join(', ') : data.message || 'Could not reset the password. Please try again.',
+          'Reset failed'
+        );
         return;
       }
 
-      setSuccess(data.message || 'Your password has been reset successfully. Taking you to login…');
+      toast.success(data.message || 'Your password has been reset successfully. Taking you to login…', 'Password reset');
+      setDone(true);
     } catch {
-      setError('Server connection error. Please try again.');
+      toast.error('Server connection error. Please try again.', 'Connection error');
     } finally {
       setIsLoading(false);
     }
@@ -90,20 +94,6 @@ export default function ResetPasswordPage() {
       topLinkHref="/login"
       topLinkText="Back to Login"
     >
-      {error && (
-        <div style={{ padding: '12px 16px', marginBottom: '20px', backgroundColor: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {success && (
-        <div style={{ padding: '12px 16px', marginBottom: '20px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', borderRadius: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-          <span>{success}</span>
-        </div>
-      )}
-
       <form onSubmit={handleSubmit}>
         {/* New Password */}
         <div className="auth-input-group">
@@ -119,7 +109,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Create a strong password"
               className="auth-input"
-              disabled={!hasToken || !!success}
+              disabled={!hasToken || done}
             />
             <button
               type="button"
@@ -150,7 +140,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Re-enter your password"
               className="auth-input"
-              disabled={!hasToken || !!success}
+              disabled={!hasToken || done}
             />
           </div>
         </div>
@@ -159,7 +149,7 @@ export default function ResetPasswordPage() {
           type="submit"
           className="auth-submit-btn"
           style={{ marginTop: '8px' }}
-          disabled={isLoading || !hasToken || !!success}
+          disabled={isLoading || !hasToken || done}
         >
           <span>{isLoading ? 'UPDATING…' : 'RESET PASSWORD'}</span>
           <ArrowRight className="w-4 h-4" />

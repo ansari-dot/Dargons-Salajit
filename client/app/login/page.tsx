@@ -3,14 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
 import { loginUser, clearAuthError } from '@/lib/redux/slices/authSlice';
 import AuthLayout from '@/components/auth/AuthLayout';
+import { useToast } from '@/components/ui/Toast';
 
 export default function LoginPage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const toast = useToast();
 
   const { isAuthenticated, isLoading, error } = useAppSelector((state) => state.auth);
 
@@ -23,12 +25,23 @@ export default function LoginPage() {
     dispatch(clearAuthError());
   }, [dispatch]);
 
+  // Surface login failures as toast notifications
+  useEffect(() => {
+    if (error) {
+      toast.error(error, 'Login failed');
+      dispatch(clearAuthError());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
   // Redirect if user is authenticated
   useEffect(() => {
     if (isAuthenticated) {
+      toast.success('Welcome back!', 'Logged in');
       router.push('/');
     }
-  }, [isAuthenticated, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -41,13 +54,6 @@ export default function LoginPage() {
       title="Log in to Your Account"
       subtitle="Access your orders, wishlist and more."
     >
-      {error && (
-        <div style={{ padding: '12px 16px', marginBottom: '20px', backgroundColor: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-          <span>{error}</span>
-        </div>
-      )}
-
       <form onSubmit={handleLogin}>
         {/* Email Field */}
         <div className="auth-input-group">

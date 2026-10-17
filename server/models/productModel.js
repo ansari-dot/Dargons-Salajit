@@ -376,31 +376,26 @@ class ProductModel {
       if (productData.stock_quantity !== undefined) {
         try {
           const qty = Number(productData.stock_quantity);
-          const status = qty === 0 ? 'Out of Stock' : (qty < 10 ? 'Low Stock' : 'In Stock');
-          const [existingInv] = await connection.query(`SELECT product_id FROM inventory WHERE product_id = ? OR productId = ?`, [id, id]);
-          if (existingInv.length === 0) {
-            try {
-              await connection.query(
-                `INSERT INTO inventory (product_id, stock_quantity, availability_status) VALUES (?, ?, ?)`,
-                [id, qty, status]
-              );
-            } catch (e) {
-              try {
-                await connection.query(
-                  `INSERT INTO inventory (productId, stock_quantity, availability_status) VALUES (?, ?, ?)`,
-                  [id, qty, status]
-                );
-              } catch (e2) {}
-            }
-          } else {
-            try {
-              await connection.query(
-                `UPDATE inventory SET stock_quantity = ?, availability_status = ? WHERE product_id = ? OR productId = ?`,
-                [qty, status, id, id]
-              );
-            } catch (e) {}
-          }
-        } catch (e) {}
+          // NOTE: 'Low Stock' is NOT part of the availability_status ENUM
+          // ('In Stock' | 'Out of Stock' | 'Pre-Order') — writing it silently
+          // corrupted the column, so only the valid values are used here.
+          const status = qty === 0 ? 'Out of Stock' : 'In Stock';
+
+          // ATOMIC upsert: a single INSERT … ON DUPLICATE KEY UPDATE statement
+          // keyed on UNIQUE(product_id). No SELECT-then-INSERT/UPDATE race —
+          // concurrent order deductions and admin edits serialise on the row,
+          // and the admin's absolute value always lands exactly once.
+          await connection.query(
+            `INSERT INTO inventory (product_id, stock_quantity, availability_status)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               stock_quantity = VALUES(stock_quantity),
+               availability_status = VALUES(availability_status)`,
+            [id, qty, status]
+          );
+        } catch (e) {
+          console.warn('Inventory update notice:', e.message);
+        }
       }
 
       // Update Product Main & Gallery Images if provided
@@ -410,6 +405,86 @@ class ProductModel {
 
       await connection.commit();
       return true;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * ATOMIC relative stock change (restock / manual adjust).
+   * The delta is applied by the database (`stock_quantity = stock_quantity + ?`)
+   * so concurrent order deductions and other restocks can never lose an update —
+   * unlike the old admin flow which computed `current + delta` in the browser
+   * from a stale snapshot and PUT an absolute value.
+   * Returns the updated row (or null when the product has no inventory row yet
+   * and delta was negative).
+   */
+  static async adjustStockAtomic(productId, delta, movementType = 'restock', referenceId = null) {
+    const qty = Number(delta);
+    if (!Number.isInteger(qty) || qty === 0) {
+      const error = new Error('Stock adjustment must be a non-zero whole number.');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!['restock', 'manual_adjustment', 'cancellation_refund'].includes(movementType)) {
+      const error = new Error(`Invalid movement type '${movementType}'.`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Ensure the row exists in AUTOCOMMIT, before the transaction — an
+    // INSERT IGNORE inside the txn holds duplicate-key locks the UPDATE below
+    // would need to upgrade, which deadlocks against concurrent checkouts.
+    await db.query(
+      `INSERT IGNORE INTO inventory (product_id, variantId, stock_quantity, reserved_quantity, reorder_level, availability_status)
+       VALUES (?, ?, 0, 0, 10, 'In Stock')`,
+      [productId, productId]
+    );
+
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      // Single atomic relative UPDATE + status flip; guard prevents negatives
+      const [result] = await connection.query(
+        `UPDATE inventory
+            SET stock_quantity = stock_quantity + ?,
+                availability_status = IF(stock_quantity + ? <= 0, 'Out of Stock', 'In Stock'),
+                last_restocked_at = IF(? > 0, CURRENT_TIMESTAMP, last_restocked_at)
+          WHERE product_id = ? AND stock_quantity + ? >= 0`,
+        [qty, qty, qty, productId, qty]
+      );
+
+      if (result.affectedRows === 0) {
+        await connection.rollback();
+        const error = new Error('Insufficient stock for this adjustment.');
+        error.statusCode = 409;
+        throw error;
+      }
+
+      const [rows] = await connection.query(
+        `SELECT id, product_id, stock_quantity, availability_status, last_restocked_at
+           FROM inventory WHERE product_id = ? LIMIT 1`,
+        [productId]
+      );
+      const inv = rows[0];
+
+      // Audit trail
+      try {
+        await connection.query(
+          `INSERT INTO inventory_movements (inventory_id, movement_type, quantity_changed, stock_after, reference_id)
+           VALUES (?, ?, ?, ?, ?)`,
+          [inv.id, movementType, qty, inv.stock_quantity, referenceId]
+        );
+      } catch (logErr) {
+        console.warn('Inventory movement log failed:', logErr.message);
+      }
+
+      await connection.commit();
+      return inv;
     } catch (error) {
       await connection.rollback();
       throw error;

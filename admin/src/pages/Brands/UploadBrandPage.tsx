@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, Loader2, Tag, UploadCloud } from 'lucide-react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
-import { Alert } from '../../components/common/Alert';
+import { useToast } from '../../components/common/Toast';
 import { UploadBrandHeader } from '../../components/brands/UploadBrandHeader';
 import { BrandImageDropzone } from '../../components/brands/BrandImageDropzone';
 import { BrandImagePreviewCard } from '../../components/brands/BrandImagePreviewCard';
@@ -14,6 +14,7 @@ const MAX_DESCRIPTION_LENGTH = 500;
 
 export const UploadBrandPage: React.FC = () => {
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [brandName, setBrandName] = useState('');
   const [description, setDescription] = useState('');
@@ -21,7 +22,6 @@ export const UploadBrandPage: React.FC = () => {
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [status, setStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Build (and clean up) an object URL for the selected logo preview
   useEffect(() => {
@@ -45,16 +45,15 @@ export const UploadBrandPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStatus(null);
 
     if (!brandName.trim()) {
-      setStatus({ type: 'error', text: 'Brand name is required.' });
+      toast.error('Brand name is required.');
       return;
     }
 
     if (!logoFile) {
       setImageError('Please select a brand logo image to upload.');
-      setStatus({ type: 'error', text: 'Please select a brand logo image to upload.' });
+      toast.error('Please select a brand logo image to upload.');
       return;
     }
 
@@ -66,17 +65,14 @@ export const UploadBrandPage: React.FC = () => {
         logo: logoFile,
       });
 
-      setStatus({
-        type: 'success',
-        text: `Brand '${created.name}' uploaded successfully and is now available in your store.`,
-      });
+      toast.success(
+        `Brand '${created.name}' uploaded successfully and is now available in your store.`,
+        'Brand uploaded'
+      );
       resetForm();
     } catch (error: any) {
       console.error('Failed to upload brand:', error);
-      setStatus({
-        type: 'error',
-        text: error?.response?.data?.message || 'Brand upload failed. Please try again.',
-      });
+      toast.error(error?.response?.data?.message || 'Brand upload failed. Please try again.', 'Upload failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -85,10 +81,6 @@ export const UploadBrandPage: React.FC = () => {
   return (
     <div className="space-y-5">
       <UploadBrandHeader />
-
-      {status && (
-        <Alert type={status.type} message={status.text} onClose={() => setStatus(null)} />
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
         {/* ── Brand Information form ── */}
@@ -111,7 +103,6 @@ export const UploadBrandPage: React.FC = () => {
                 onFileSelect={(file) => {
                   setLogoFile(file);
                   setImageError(null);
-                  setStatus(null);
                 }}
                 onClear={() => setLogoFile(null)}
               />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../../components/common/Toast';
 import { galleryApi, GalleryItem, CreateGalleryPayload } from '../../services/gallery.api';
 import { uploadSingleImageFile } from '../../services/uploadService';
 import { Card } from '../../components/common/Card';
@@ -27,7 +28,7 @@ export const GalleryPage: React.FC = () => {
   const [editingItem, setEditingItem] = useState<GalleryItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const toast = useToast();
 
   // Form State
   const [formData, setFormData] = useState<CreateGalleryPayload>({
@@ -63,10 +64,10 @@ export const GalleryPage: React.FC = () => {
     try {
       const url = await uploadSingleImageFile(file);
       setFormData(prev => ({ ...prev, image_url: url }));
-      setStatusMessage({ type: 'success', text: 'Gallery photo uploaded successfully!' });
+      toast.success('Gallery photo uploaded successfully!');
     } catch (error) {
       console.error('Upload failed:', error);
-      setStatusMessage({ type: 'error', text: 'Image upload failed. Please try again.' });
+      toast.error('Image upload failed. Please try again.');
     } finally {
       setUploadingImage(false);
     }
@@ -76,10 +77,10 @@ export const GalleryPage: React.FC = () => {
     try {
       const updated = await galleryApi.toggleStatus(id);
       setGalleryItems(prev => prev.map(item => item.id === id ? { ...item, is_active: updated.is_active } : item));
-      setStatusMessage({ type: 'success', text: `Gallery photo '${title}' status updated.` });
+      toast.success(`Gallery photo '${title}' status updated.`);
     } catch (error) {
       console.error('Failed to toggle status:', error);
-      setStatusMessage({ type: 'error', text: 'Failed to update photo status.' });
+      toast.error('Failed to update photo status.');
     }
   };
 
@@ -89,10 +90,10 @@ export const GalleryPage: React.FC = () => {
     try {
       await galleryApi.deleteGalleryItem(id);
       setGalleryItems(prev => prev.filter(item => item.id !== id));
-      setStatusMessage({ type: 'success', text: `Photo '${title}' deleted successfully.` });
+      toast.success(`Photo '${title}' deleted successfully.`);
     } catch (error) {
       console.error('Failed to delete gallery item:', error);
-      setStatusMessage({ type: 'error', text: 'Failed to delete photo.' });
+      toast.error('Failed to delete photo.');
     }
   };
 
@@ -135,12 +136,11 @@ export const GalleryPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title || !formData.image_url) {
-      setStatusMessage({ type: 'error', text: 'Title and Image are required.' });
+      toast.error('Title and Image are required.');
       return;
     }
 
     setIsSubmitting(true);
-    setStatusMessage(null);
     try {
       const payload: CreateGalleryPayload = {
         title: formData.title.trim(),
@@ -154,18 +154,18 @@ export const GalleryPage: React.FC = () => {
       if (editingItem) {
         const updated = await galleryApi.updateGalleryItem(editingItem.id, payload);
         setGalleryItems(prev => prev.map(i => i.id === editingItem.id ? updated : i));
-        setStatusMessage({ type: 'success', text: `Gallery photo '${updated.title}' updated successfully.` });
+        toast.success(`Gallery photo '${updated.title}' updated successfully.`);
       } else {
         const created = await galleryApi.createGalleryItem(payload);
         setGalleryItems(prev => [created, ...prev]);
-        setStatusMessage({ type: 'success', text: `Gallery photo '${created.title}' added successfully!` });
+        toast.success(`Gallery photo '${created.title}' added successfully!`);
       }
 
       setIsModalOpen(false);
       loadGallery();
     } catch (error: any) {
       console.error('Error saving gallery item:', error);
-      setStatusMessage({ type: 'error', text: error.response?.data?.message || 'Failed to save gallery item.' });
+      toast.error(error.response?.data?.message || 'Failed to save gallery item.');
     } finally {
       setIsSubmitting(false);
     }
@@ -220,17 +220,6 @@ export const GalleryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Alert Banner */}
-      {statusMessage && (
-        <div className={`p-3 rounded-lg text-xs font-medium flex items-center justify-between ${
-          statusMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-        }`}>
-          <span>{statusMessage.text}</span>
-          <button onClick={() => setStatusMessage(null)} className="text-slate-400 hover:text-slate-600">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Metric Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

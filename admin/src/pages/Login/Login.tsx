@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { loginAdmin, clearAuthError } from '../../store/slices/authSlice';
-import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2, Leaf } from 'lucide-react';
+import { useToast } from '../../components/common/Toast';
+import { Mail, Lock, Eye, EyeOff, Loader2, Leaf } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const toast = useToast();
 
   const { user, isLoading, error } = useSelector((state: RootState) => state.adminAuth);
 
@@ -28,6 +30,15 @@ export const LoginPage: React.FC = () => {
     dispatch(clearAuthError());
   }, [dispatch]);
 
+  // Surface login failures as toast notifications
+  useEffect(() => {
+    if (error) {
+      toast.error(error, 'Login failed');
+      dispatch(clearAuthError());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     dispatch(loginAdmin({ email, password }) as any);
@@ -47,13 +58,6 @@ export const LoginPage: React.FC = () => {
 
         {/* Card */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-          {error && (
-            <div className="flex items-center gap-2 p-3 mb-6 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 text-sm">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="block text-xs font-semibold text-slate-600 mb-1.5">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../../components/common/Toast';
 import { couponsApi, Coupon, CreateCouponPayload } from '../../services/coupons.api';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -28,7 +29,7 @@ export const CouponsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const toast = useToast();
 
   // Modal Form state
   const [formData, setFormData] = useState<CreateCouponPayload>({
@@ -69,10 +70,10 @@ export const CouponsPage: React.FC = () => {
     try {
       const updated = await couponsApi.toggleStatus(id);
       setCoupons(prev => prev.map(c => c.id === id ? { ...c, is_active: updated.is_active } : c));
-      setStatusMessage({ type: 'success', text: `Coupon '${code}' status changed to ${updated.is_active ? 'Active' : 'Paused'}.` });
+      toast.success(`Coupon '${code}' status changed to ${updated.is_active ? 'Active' : 'Paused'}.`);
     } catch (error) {
       console.error('Failed to toggle coupon status:', error);
-      setStatusMessage({ type: 'error', text: 'Failed to update coupon status.' });
+      toast.error('Failed to update coupon status.');
     }
   };
 
@@ -82,10 +83,10 @@ export const CouponsPage: React.FC = () => {
     try {
       await couponsApi.deleteCoupon(id);
       setCoupons(prev => prev.filter(c => c.id !== id));
-      setStatusMessage({ type: 'success', text: `Coupon '${code}' deleted successfully.` });
+      toast.success(`Coupon '${code}' deleted successfully.`);
     } catch (error) {
       console.error('Failed to delete coupon:', error);
-      setStatusMessage({ type: 'error', text: 'Failed to delete coupon.' });
+      toast.error('Failed to delete coupon.');
     }
   };
 
@@ -139,12 +140,11 @@ export const CouponsPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.code || formData.discount_value === undefined) {
-      setStatusMessage({ type: 'error', text: 'Coupon Code and Discount Value are required.' });
+      toast.error('Coupon Code and Discount Value are required.');
       return;
     }
 
     setIsSubmitting(true);
-    setStatusMessage(null);
     try {
       const payload: CreateCouponPayload = {
         code: formData.code.trim().toUpperCase(),
@@ -161,18 +161,18 @@ export const CouponsPage: React.FC = () => {
       if (editingCoupon) {
         const updated = await couponsApi.updateCoupon(editingCoupon.id, payload);
         setCoupons(prev => prev.map(c => c.id === editingCoupon.id ? updated : c));
-        setStatusMessage({ type: 'success', text: `Coupon '${updated.code}' updated successfully.` });
+        toast.success(`Coupon '${updated.code}' updated successfully.`);
       } else {
         const created = await couponsApi.createCoupon(payload);
         setCoupons(prev => [created, ...prev]);
-        setStatusMessage({ type: 'success', text: `Coupon '${created.code}' created successfully!` });
+        toast.success(`Coupon '${created.code}' created successfully!`);
       }
 
       setIsModalOpen(false);
       loadCoupons();
     } catch (error: any) {
       console.error('Error saving coupon:', error);
-      setStatusMessage({ type: 'error', text: error.response?.data?.message || 'Failed to save coupon.' });
+      toast.error(error.response?.data?.message || 'Failed to save coupon.');
     } finally {
       setIsSubmitting(false);
     }
@@ -225,17 +225,6 @@ export const CouponsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Alert Banner */}
-      {statusMessage && (
-        <div className={`p-3 rounded-lg text-xs font-medium flex items-center justify-between ${
-          statusMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-        }`}>
-          <span>{statusMessage.text}</span>
-          <button onClick={() => setStatusMessage(null)} className="text-slate-400 hover:text-slate-600">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

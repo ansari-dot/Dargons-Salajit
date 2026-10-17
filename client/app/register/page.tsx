@@ -3,14 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { User, Mail, Phone, MapPin, Building2, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Building2, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
 import { registerUser, clearAuthError } from '@/lib/redux/slices/authSlice';
 import AuthLayout from '@/components/auth/AuthLayout';
+import { useToast } from '@/components/ui/Toast';
 
 export default function RegisterPage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const toast = useToast();
 
   const { isAuthenticated, isLoading, error, pendingVerificationEmail } = useAppSelector((state) => state.auth);
 
@@ -32,6 +34,15 @@ export default function RegisterPage() {
     dispatch(clearAuthError());
   }, [dispatch]);
 
+  // Surface registration failures as toast notifications
+  useEffect(() => {
+    if (error) {
+      toast.error(error, 'Registration failed');
+      dispatch(clearAuthError());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
   // Redirect if user is authenticated
   useEffect(() => {
     if (isAuthenticated) {
@@ -42,9 +53,11 @@ export default function RegisterPage() {
   // After registration → send the user to the email verification page
   useEffect(() => {
     if (pendingVerificationEmail) {
+      toast.success('Almost there! Enter the 6-digit code we emailed you.', 'Account created');
       router.push(`/verify-email?email=${encodeURIComponent(pendingVerificationEmail)}`);
     }
-  }, [pendingVerificationEmail, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingVerificationEmail]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -64,13 +77,6 @@ export default function RegisterPage() {
       title="Create Your Account"
       subtitle="Fill in your details below to set up your account."
     >
-      {error && (
-        <div style={{ padding: '12px 16px', marginBottom: '20px', backgroundColor: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-          <span>{error}</span>
-        </div>
-      )}
-
       <form onSubmit={handleRegister}>
         {/* First & Last Name */}
         <div className="auth-form-grid">

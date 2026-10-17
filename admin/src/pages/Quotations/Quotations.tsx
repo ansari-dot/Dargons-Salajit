@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../../components/common/Toast';
 import {
   quotationsApi,
   QuotationRequest,
@@ -43,10 +44,7 @@ export const QuotationsPage: React.FC = () => {
     useState<QuotationRequest | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
+  const toast = useToast();
 
   const statuses = ['All', 'Pending', 'Approved', 'Rejected'];
 
@@ -92,14 +90,12 @@ export const QuotationsPage: React.FC = () => {
   const openDetails = (quotation: QuotationRequest) => {
     setActiveQuotation(quotation);
     setNoteDraft(quotation.adminNote || '');
-    setStatusMessage(null);
   };
 
   const handleUpdateStatus = async (status: QuotationStatus) => {
     if (!activeQuotation || isSaving) return;
 
     setIsSaving(true);
-    setStatusMessage(null);
 
     const updated = await quotationsApi.updateStatus(
       activeQuotation.id,
@@ -114,17 +110,11 @@ export const QuotationsPage: React.FC = () => {
         prev.map((q) => (q.id === activeQuotation.id ? { ...q, ...next } : q))
       );
       setActiveQuotation((prev) => (prev ? { ...prev, ...next } : prev));
-      setStatusMessage({
-        type: 'success',
-        text: `Quotation #${activeQuotation.id} marked ${statusLabel(
+      toast.success(`Quotation #${activeQuotation.id} marked ${statusLabel(
           updated.status
-        )}.`,
-      });
+        )}.`);
     } else {
-      setStatusMessage({
-        type: 'error',
-        text: 'Failed to update the quotation status.',
-      });
+      toast.error('Failed to update the quotation status.');
     }
 
     setIsSaving(false);
@@ -168,24 +158,6 @@ export const QuotationsPage: React.FC = () => {
         </div>
       </div>
 
-      {statusMessage && (
-        <div
-          className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-semibold border ${
-            statusMessage.type === 'success'
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : 'bg-rose-50 text-rose-700 border-rose-200'
-          }`}
-        >
-          <span>{statusMessage.text}</span>
-          <button
-            type="button"
-            onClick={() => setStatusMessage(null)}
-            className="text-slate-400 hover:text-slate-600"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -533,17 +505,6 @@ export const QuotationsPage: React.FC = () => {
               )}
             </div>
 
-            {statusMessage && (
-              <p
-                className={`text-xs font-semibold ${
-                  statusMessage.type === 'success'
-                    ? 'text-emerald-600'
-                    : 'text-rose-600'
-                }`}
-              >
-                {statusMessage.text}
-              </p>
-            )}
 
             <div className="pt-3 border-t border-slate-100 flex justify-end">
               <Button

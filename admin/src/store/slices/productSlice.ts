@@ -73,6 +73,28 @@ export const deleteProduct = createAsyncThunk(
   }
 );
 
+// Async Thunk: Atomic relative stock change (restock / manual adjust).
+// Sends only the delta — the server applies `stock_quantity = stock_quantity + delta`
+// atomically, so it is safe to run while customers are checking out.
+export const adjustStock = createAsyncThunk(
+  'adminProducts/adjustStock',
+  async (
+    {
+      id,
+      delta,
+      movementType = 'restock',
+    }: { id: number; delta: number; movementType?: 'restock' | 'manual_adjustment' | 'cancellation_refund' },
+    { rejectWithValue }
+  ) => {
+    try {
+      const inv = await productApiService.adjustStock(id, delta, movementType);
+      return { id, inv };
+    } catch (err: any) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to adjust stock');
+    }
+  }
+);
+
 const productSlice = createSlice({
   name: 'adminProducts',
   initialState,
@@ -130,6 +152,33 @@ const productSlice = createSlice({
         }
       })
       .addCase(updateProduct.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.error = action.payload as string;
+      })
+
+      // Atomic Stock Adjustment (relative delta applied server-side)
+      .addCase(adjustStock.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
+      .addCase(
+        adjustStock.fulfilled,
+        (
+          state,
+          action: PayloadAction<{ id: number; inv: { stock_quantity: number; availability_status: string } }>
+        ) => {
+          state.actionLoading = false;
+          const { id, inv } = action.payload;
+          const index = state.items.findIndex((item) => item.id === id);
+          if (index !== -1) {
+            state.items[index] = {
+              ...state.items[index],
+              stock_quantity: inv.stock_quantity,
+            };
+          }
+        }
+      )
+      .addCase(adjustStock.rejected, (state, action) => {
         state.actionLoading = false;
         state.error = action.payload as string;
       })

@@ -1,12 +1,18 @@
 const AuthService = require('../services/authService');
 const { sendSuccess } = require('../utils/responseHandler');
 const { setTokenCookies, clearTokenCookies } = require('../utils/jwtHelper');
-
+const checkDisposableEmail = require('../utils/checkDisposableEmail.js')
 // Register Controller
 const register = async (req, res, next) => {
   try {
     const { requiresVerification, email } = await AuthService.register(req.body);
 
+    if(checkDisposableEmail(email)){
+      return res.status(400).json({
+        success:false,
+        message:"Temporary email addresses are not allowed. Please use your personal email.",
+      })
+    }
     return sendSuccess(
       res,
       { requiresVerification, email },

@@ -1,4 +1,5 @@
 const { sendError } = require('../utils/responseHandler');
+const { isDisposableEmail } = require('../utils/disposableEmail');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{2,4}[-\s\.]?[0-9]{2,4}[-\s\.]?[0-9]{0,6}$/;
@@ -28,6 +29,9 @@ const validateRegister = (req, res, next) => {
 
   if (!email || !EMAIL_REGEX.test(email.trim())) {
     errors.push('A valid email address is required.');
+  } else if (isDisposableEmail(email)) {
+    // Block temp-mail providers (tempmail.org, mailinator, guerrillamail, …)
+    errors.push('Temporary or disposable email addresses are not allowed. Please use a permanent email address.');
   }
 
   if (!phone || !PHONE_REGEX.test(phone.trim())) {

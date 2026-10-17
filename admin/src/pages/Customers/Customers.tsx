@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../../components/common/Toast';
 import { customersApi, CreateCustomerPayload } from '../../services/customers.api';
 import { Card } from '../../components/common/Card';
 import { Avatar } from '../../components/common/Avatar';
@@ -29,7 +30,7 @@ export const CustomersPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const toast = useToast();
 
   // Show Customer (detail modal) state
   const [viewCustomer, setViewCustomer] = useState<Customer | null>(null);
@@ -72,16 +73,15 @@ export const CustomersPage: React.FC = () => {
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.first_name || !formData.email) {
-      setStatusMessage({ type: 'error', text: 'First Name and Email are required.' });
+      toast.error('First Name and Email are required.');
       return;
     }
 
     setIsSubmitting(true);
-    setStatusMessage(null);
     try {
       const newCustomer = await customersApi.createCustomer(formData);
       setCustomers(prev => [newCustomer, ...prev]);
-      setStatusMessage({ type: 'success', text: `Customer ${newCustomer.name} created successfully!` });
+      toast.success(`Customer ${newCustomer.name} created successfully!`);
       setIsModalOpen(false);
       setFormData({
         first_name: '',
@@ -97,7 +97,7 @@ export const CustomersPage: React.FC = () => {
       loadCustomers();
     } catch (error: any) {
       console.error('Error adding customer:', error);
-      setStatusMessage({ type: 'error', text: error.response?.data?.message || 'Failed to create customer.' });
+      toast.error(error.response?.data?.message || 'Failed to create customer.');
     } finally {
       setIsSubmitting(false);
     }
@@ -112,7 +112,7 @@ export const CustomersPage: React.FC = () => {
       if (detail) setViewCustomer(detail);
     } catch (error) {
       console.error('Failed to load customer details:', error);
-      setStatusMessage({ type: 'error', text: 'Failed to load customer details.' });
+      toast.error('Failed to load customer details.');
     } finally {
       setIsViewLoading(false);
     }
@@ -124,10 +124,10 @@ export const CustomersPage: React.FC = () => {
     try {
       await customersApi.deleteCustomer(id);
       setCustomers(prev => prev.filter(c => c.id !== id));
-      setStatusMessage({ type: 'success', text: `Customer '${name}' deleted successfully.` });
+      toast.success(`Customer '${name}' deleted successfully.`);
     } catch (error) {
       console.error('Failed to delete customer:', error);
-      setStatusMessage({ type: 'error', text: 'Failed to delete customer.' });
+      toast.error('Failed to delete customer.');
     }
   };
 
@@ -212,17 +212,6 @@ export const CustomersPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Alert Banner */}
-      {statusMessage && (
-        <div className={`p-3 rounded-lg text-xs font-medium flex items-center justify-between ${
-          statusMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-        }`}>
-          <span>{statusMessage.text}</span>
-          <button onClick={() => setStatusMessage(null)} className="text-slate-400 hover:text-slate-600">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Metric Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import StoreProvider from '@/components/providers/StoreProvider';
 import LayoutContent from '@/components/layout/LayoutContent';
+import { ToastProvider } from '@/components/ui/Toast';
 
 export const metadata: Metadata = {
   title: 'Palses — Premium Himalayan Salajeet',
@@ -32,7 +33,9 @@ export default function RootLayout({
       </head>
       <body>
         <StoreProvider>
-          <LayoutContent>{children}</LayoutContent>
+          <ToastProvider>
+            <LayoutContent>{children}</LayoutContent>
+          </ToastProvider>
         </StoreProvider>
       </body>
     </html>

@@ -17,6 +17,7 @@ import {
 import { Avatar } from '../common/Avatar';
 import { logoutLocally } from '../../store/slices/authSlice';
 import { useAppSelector } from '../../store';
+import { useToast } from '../common/Toast';
 
 interface TopNavbarProps {
   onMobileMenuToggle: () => void;
@@ -31,6 +32,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const toast = useToast();
   const adminUser = useAppSelector((state) => state.adminAuth.user);
   const adminName = adminUser
     ? `${adminUser.first_name || ''} ${adminUser.last_name || ''}`.trim() || adminUser.email
@@ -195,6 +197,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   onClick={() => {
                     setShowProfileMenu(false);
                     dispatch(logoutLocally());
+                    toast.success('You have been signed out.', 'Signed out');
                     navigate('/login');
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"

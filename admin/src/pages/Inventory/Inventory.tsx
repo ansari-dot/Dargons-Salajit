@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { fetchProducts, updateProduct, clearError } from '../../store/slices/productSlice';
+import { fetchProducts, adjustStock, clearError } from '../../store/slices/productSlice';
 import { ProductItem } from '../../services/productApiService';
 import { Card } from '../../components/common/Card';
 import { StatusBadge } from '../../components/common/Badge';
@@ -37,43 +37,27 @@ export const InventoryPage: React.FC = () => {
     dispatch(fetchProducts(undefined));
   };
 
-  // Adjust stock for single item
+  // Adjust stock for single item — sends only the DELTA to the atomic
+  // server endpoint (`stock_quantity = stock_quantity + delta` in the DB),
+  // so a concurrent customer checkout can never be overwritten by a stale
+  // browser-computed total.
   const handleStockAdjust = (product: ProductItem, delta: number) => {
-    const currentStock = product.stock_quantity ?? 0;
-    const newStock = Math.max(0, currentStock + delta);
-
-    dispatch(
-      updateProduct({
-        id: product.id,
-        payload: {
-          stock_quantity: newStock,
-        },
-      })
-    );
+    dispatch(adjustStock({ id: product.id, delta, movementType: 'manual_adjustment' }));
   };
 
-  // Submit Receive Stock Batch Modal
+  // Submit Receive Stock Batch Modal — also delta-based (atomic server-side)
   const handleReceiveStockSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProductId) return;
 
-    const targetProduct = items.find((p) => p.id === selectedProductId);
-    if (!targetProduct) return;
-
-    const currentQty = targetProduct.stock_quantity ?? 0;
     const addQty = parseInt(receivedQty, 10) || 0;
-    const newTotal = currentQty + addQty;
+    if (addQty <= 0) return;
 
     const result = await dispatch(
-      updateProduct({
-        id: selectedProductId,
-        payload: {
-          stock_quantity: newTotal,
-        },
-      })
+      adjustStock({ id: selectedProductId, delta: addQty, movementType: 'restock' })
     );
 
-    if (updateProduct.fulfilled.match(result)) {
+    if (adjustStock.fulfilled.match(result)) {
       setIsReceiveModalOpen(false);
       setSelectedProductId(null);
       setReceivedQty('50');

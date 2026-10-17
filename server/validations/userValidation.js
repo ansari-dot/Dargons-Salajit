@@ -1,4 +1,5 @@
 const { sendError } = require('../utils/responseHandler');
+const { isDisposableEmail } = require('../utils/disposableEmail');
 
 // Regex patterns for validation
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -27,6 +28,9 @@ const validateUserData = (req, res, next) => {
   // 2. Email Validation
   if (!email || !EMAIL_REGEX.test(email.trim())) {
     errors.push('A valid email address is required (e.g. user@example.com).');
+  } else if (isDisposableEmail(email)) {
+    // Block temp-mail providers (tempmail.org, mailinator, guerrillamail, …)
+    errors.push('Temporary or disposable email addresses are not allowed. Please use a permanent email address.');
   }
 
   // 3. Optional Phone Validation

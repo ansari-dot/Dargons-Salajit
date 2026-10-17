@@ -6,7 +6,6 @@ const {
   generateRefreshToken,
   verifyRefreshToken
 } = require('../utils/jwtHelper');
-
 const generateCode = require('../utils/generateCode.js')
 const sendEmail = require('../utils/stmp.js')
 const EMAIL_SUBJECTS = require('../utils/EmailSubject');

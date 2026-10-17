@@ -99,6 +99,23 @@ export const productApiService = {
     return response.data.data || response.data;
   },
 
+  /**
+   * Atomic relative stock change (POST /products/:id/stock).
+   * Sends only the DELTA — the server applies `stock_quantity = stock_quantity + delta`
+   * inside a transaction, so concurrent checkouts can never lose this update.
+   */
+  adjustStock: async (
+    id: number,
+    delta: number,
+    movementType: 'restock' | 'manual_adjustment' | 'cancellation_refund' = 'restock'
+  ) => {
+    const response = await api.post(`/products/${id}/stock`, {
+      delta,
+      movement_type: movementType,
+    });
+    return response.data.data || response.data;
+  },
+
   // Delete Product
   delete: async (id: number) => {
     const response = await api.delete(`/products/${id}`);

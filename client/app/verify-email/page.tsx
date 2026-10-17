@@ -3,18 +3,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Mail, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Mail, ArrowRight } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
 import { checkAuthStatus, clearPendingVerification } from '@/lib/redux/slices/authSlice';
 import AuthLayout from '@/components/auth/AuthLayout';
+import { useToast } from '@/components/ui/Toast';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-const CODE_LENGTH = 6;
+const CODE_LENGTH = 10;
 const RESEND_COOLDOWN = 60;
 
 export default function VerifyEmailPage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const toast = useToast();
   const { pendingVerificationEmail, isAuthenticated } = useAppSelector((state) => state.auth);
 
   const [email, setEmail] = useState('');
@@ -22,8 +24,6 @@ export default function VerifyEmailPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const code = digits.join('');
@@ -110,8 +110,6 @@ export default function VerifyEmailPage() {
     if (code.length !== CODE_LENGTH || !email) return;
 
     setIsLoading(true);
-    setError(null);
-    setSuccess(null);
     try {
       const res = await fetch(`${API_BASE_URL}/auth/verify-email`, {
         method: 'POST',
@@ -122,19 +120,22 @@ export default function VerifyEmailPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.errors ? data.errors.join(', ') : data.message || 'Verification failed. Please try again.');
+        toast.error(
+          data.errors ? data.errors.join(', ') : data.message || 'Verification failed. Please try again.',
+          'Verification failed'
+        );
         setDigits(Array(CODE_LENGTH).fill(''));
         inputRefs.current[0]?.focus();
         return;
       }
 
-      setSuccess('Email verified! Taking you to your account…');
+      toast.success('Email verified! Taking you to your account…', 'Verified');
       dispatch(clearPendingVerification());
       // Pick up the httpOnly session cookies set by the server
       await dispatch(checkAuthStatus());
       router.push('/');
     } catch {
-      setError('Server connection error. Please try again.');
+      toast.error('Server connection error. Please try again.', 'Connection error');
     } finally {
       setIsLoading(false);
     }
@@ -144,8 +145,6 @@ export default function VerifyEmailPage() {
     if (cooldown > 0 || isResending || !email) return;
 
     setIsResending(true);
-    setError(null);
-    setSuccess(null);
     try {
       const res = await fetch(`${API_BASE_URL}/auth/resend-code`, {
         method: 'POST',
@@ -156,14 +155,14 @@ export default function VerifyEmailPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.errors ? data.errors.join(', ') : data.message || 'Could not resend the code.');
+        toast.error(data.errors ? data.errors.join(', ') : data.message || 'Could not resend the code.');
         return;
       }
 
-      setSuccess('A new verification code has been sent to your email.');
+      toast.success('A new verification code has been sent to your email.', 'Code sent');
       setCooldown(RESEND_COOLDOWN);
     } catch {
-      setError('Server connection error. Please try again.');
+      toast.error('Server connection error. Please try again.', 'Connection error');
     } finally {
       setIsResending(false);
     }
@@ -181,20 +180,6 @@ export default function VerifyEmailPage() {
       }
       heroSubtitle="A secure step toward your natural wellness journey."
     >
-      {error && (
-        <div style={{ padding: '12px 16px', marginBottom: '20px', backgroundColor: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {success && (
-        <div style={{ padding: '12px 16px', marginBottom: '20px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', borderRadius: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-          <span>{success}</span>
-        </div>
-      )}
-
       <form onSubmit={handleVerify}>
         {email && (
           <p className="auth-code-sent-to">
