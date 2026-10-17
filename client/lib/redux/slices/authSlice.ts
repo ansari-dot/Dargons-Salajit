@@ -21,6 +21,8 @@ export interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  /** Set right after register — the email awaiting 6-digit verification */
+  pendingVerificationEmail: string | null;
 }
 
 const initialState: AuthState = {
@@ -29,6 +31,7 @@ const initialState: AuthState = {
   isAuthenticated: false,
   isLoading: false,
   error: null,
+  pendingVerificationEmail: null,
 };
 
 // Async Thunk: Register User
@@ -138,6 +141,10 @@ export const authSlice = createSlice({
       state.token = null;
       state.isAuthenticated = false;
       state.error = null;
+      state.pendingVerificationEmail = null;
+    },
+    clearPendingVerification: (state) => {
+      state.pendingVerificationEmail = null;
     }
   },
   extraReducers: (builder) => {
@@ -146,12 +153,20 @@ export const authSlice = createSlice({
       state.isLoading = true;
       state.error = null;
     });
-    builder.addCase(registerUser.fulfilled, (state, action: PayloadAction<{ user: User; accessToken: string }>) => {
+    builder.addCase(registerUser.fulfilled, (state, action: PayloadAction<{ user?: User; accessToken?: string; requiresVerification?: boolean; email?: string }>) => {
       state.isLoading = false;
-      state.user = action.payload.user;
-      state.token = action.payload.accessToken;
-      state.isAuthenticated = true;
       state.error = null;
+      if (action.payload?.requiresVerification) {
+        // Registration succeeded but the email must be verified before login
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.pendingVerificationEmail = action.payload.email || null;
+      } else {
+        state.user = action.payload.user!;
+        state.token = action.payload.accessToken!;
+        state.isAuthenticated = true;
+      }
     });
     builder.addCase(registerUser.rejected, (state, action) => {
       state.isLoading = false;
@@ -196,6 +211,6 @@ export const authSlice = createSlice({
   },
 });
 
-export const { clearAuthError, logoutLocally } = authSlice.actions;
+export const { clearAuthError, logoutLocally, clearPendingVerification } = authSlice.actions;
 
 export default authSlice.reducer;

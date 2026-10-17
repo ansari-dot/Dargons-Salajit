@@ -37,7 +37,7 @@ The storefront currency always follows the visitor's **current public IP**:
 3. The backend geolocates exactly that IP (ipwho.is → ip-api.com → freeipapi.com)
    and answers with `location.countryCode` + `currency`.
 4. **Pakistan → `PKR` · Arab League countries → their local currency ·
-   every other country → `USD`.**
+   any other country → its own local currency (`USD` only as a fallback).**
 
 ### Which currency does a visitor see?
 
@@ -50,14 +50,20 @@ the currency code, its **full name**, the rate and the rate table:
 | --- | --- | --- |
 | Pakistan | `PKR` | `₨1,299.00` |
 | UAE · Saudi Arabia · Qatar · Kuwait · Bahrain · Oman · Jordan · Lebanon · Syria · Iraq · Palestine · Egypt · Libya · Tunisia · Algeria · Morocco · Sudan · Yemen · Mauritania · Somalia · Djibouti · Comoros | `AED` `SAR` `QAR` `KWD` `BHD` `OMR` `JOD` `LBP` `SYP` `IQD` `ILS` `EGP` `LYD` `TND` `DZD` `MAD` `SDG` `YER` `MRU` `SOS` `DJF` `KMF` | `AED 17.23` |
-| Every other country | `USD` | `$4.67` |
+| Any other country | its own currency — `EUR` `GBP` `INR` `JPY` `BRL` `ZAR` … (~150 currencies; Germany → `EUR`, UK → `GBP`, India → `INR`, Japan → `JPY`) | `€4.18` |
+| Country with no mapping | `USD` (fallback) | `$4.67` |
 
-- The header currency picker lists **every supported currency with its name**
-  (`AED — UAE Dirham`, `KWD — Kuwaiti Dinar`, …).
-- KWD · BHD · OMR · JOD · LYD · TND · IQD use **3 decimals**; DJF · KMF use
-  **0**; everything else uses 2 — the currency's real ISO 4217 minor units.
-- `currencies.ts` / `currencyExchange.service.js` hold the country → currency map,
-  the names and the fallback rates and must stay in sync.
+- The header currency picker lists **every world currency with its name**
+  (~150 ISO 4217 codes, filterable with the search box):
+  `AED — UAE Dirham`, `KWD — Kuwaiti Dinar`, …
+- KWD · BHD · OMR · JOD · LYD · TND · IQD use **3 decimals**; BIF · CLP · DJF ·
+  GNF · ISK · JPY · KMF · KRW · PYG · RWF · UGX · VND · VUV · XAF · XOF · XPF
+  use **0**; everything else uses 2 — the currency's real ISO 4217 minor units.
+- `currency.ts` / `currencyExchange.service.js` hold the country → currency map,
+  the names and the fallback rates and must stay in sync — run
+  `node _check_currency.cjs` after touching either file (add
+  `npx tsc lib/utils/currency.ts --outDir ../_tmp_currency --module commonjs
+  --types node` from `client/` first to also smoke-test formatting).
 
 `client/components/providers/StoreProvider.tsx` re-detects **every 10 seconds**
 (plus on tab focus / visibility / reconnect), so turning a VPN on or off while

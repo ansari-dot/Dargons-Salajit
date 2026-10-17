@@ -54,3 +54,24 @@ export const STOCK_STATUS_COLORS: Record<string, { bg: string; text: string; dot
     border: 'border-rose-200',
   },
 };
+
+export const QUOTATION_STATUS_COLORS: Record<string, { bg: string; text: string; dot: string; border: string }> = {
+  Pending: {
+    bg: 'bg-amber-50',
+    text: 'text-amber-700',
+    dot: 'bg-amber-500',
+    border: 'border-amber-200',
+  },
+  Approved: {
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    dot: 'bg-emerald-500',
+    border: 'border-emerald-200',
+  },
+  Rejected: {
+    bg: 'bg-rose-50',
+    text: 'text-rose-700',
+    dot: 'bg-rose-500',
+    border: 'border-rose-200',
+  },
+};

@@ -18,7 +18,8 @@ import {
   RefreshCw,
   Phone,
   MapPin,
-  ShieldCheck
+  ShieldCheck,
+  Eye
 } from 'lucide-react';
 import { Customer } from '../../types';
 
@@ -29,6 +30,10 @@ export const CustomersPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Show Customer (detail modal) state
+  const [viewCustomer, setViewCustomer] = useState<Customer | null>(null);
+  const [isViewLoading, setIsViewLoading] = useState(false);
 
   // Form State for Add Customer Modal
   const [formData, setFormData] = useState<CreateCustomerPayload>({
@@ -95,6 +100,21 @@ export const CustomersPage: React.FC = () => {
       setStatusMessage({ type: 'error', text: error.response?.data?.message || 'Failed to create customer.' });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Show Customer: fetch full profile from GET /api/admin/customer/:id
+  const handleViewCustomer = async (id: string) => {
+    setIsViewLoading(true);
+    setViewCustomer(customers.find((c) => String(c.id) === String(id)) || null);
+    try {
+      const detail = await customersApi.getCustomer(id);
+      if (detail) setViewCustomer(detail);
+    } catch (error) {
+      console.error('Failed to load customer details:', error);
+      setStatusMessage({ type: 'error', text: 'Failed to load customer details.' });
+    } finally {
+      setIsViewLoading(false);
     }
   };
 
@@ -347,6 +367,14 @@ export const CustomersPage: React.FC = () => {
 
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleViewCustomer(cust.id)}
+                          title="View Customer"
+                          className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded transition-colors font-medium"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View</span>
+                        </button>
                         <a
                           href={`mailto:${cust.email}`}
                           title="Send Email"
@@ -497,6 +525,113 @@ export const CustomersPage: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Show Customer Detail Modal */}
+      {viewCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border-slate-100">
+            <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-blue-600" />
+                <h3 className="font-bold text-slate-900 text-sm">Customer Details</h3>
+                {viewCustomer.role === 'admin' && (
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                    ADMIN
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setViewCustomer(null)}
+                className="text-slate-400 hover:text-slate-600 rounded-lg p-1 hover:bg-slate-200/50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              {isViewLoading ? (
+                <div className="p-8 text-center text-slate-400">
+                  <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
+                  <p className="text-xs">Loading customer from admin backend...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Profile Header */}
+                  <div className="flex items-center gap-3">
+                    <Avatar name={viewCustomer.name} src={viewCustomer.avatar} size="md" />
+                    <div>
+                      <p className="font-bold text-slate-900 text-sm">{viewCustomer.name}</p>
+                      <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-0.5">
+                        <ShieldCheck className="w-3 h-3 inline" /> Verified Customer
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Contact */}
+                  <div className="grid grid-cols-1 gap-2.5">
+                    <div className="flex items-start gap-2">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
+                      <div>
+                        <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Email</p>
+                        <p className="text-slate-800 font-medium">{viewCustomer.email || 'Not set'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
+                      <div>
+                        <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Phone</p>
+                        <p className="text-slate-800 font-medium">{viewCustomer.phone || 'Not set'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
+                      <div>
+                        <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Address</p>
+                        <p className="text-slate-800 font-medium">
+                          {[viewCustomer.street_address, viewCustomer.city, viewCustomer.postal_code]
+                            .filter(Boolean)
+                            .join(', ') || 'Not set'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100">
+                    <div className="text-center p-2 bg-blue-50 rounded-lg">
+                      <ShoppingBag className="w-3.5 h-3.5 text-blue-600 mx-auto mb-1" />
+                      <p className="font-extrabold text-slate-900 text-sm">{viewCustomer.ordersCount}</p>
+                      <p className="text-[10px] text-slate-500 font-medium">Orders</p>
+                    </div>
+                    <div className="text-center p-2 bg-emerald-50 rounded-lg">
+                      <DollarSign className="w-3.5 h-3.5 text-emerald-600 mx-auto mb-1" />
+                      <p className="font-extrabold text-slate-900 text-sm">{formatCurrency(viewCustomer.totalSpent || 0)}</p>
+                      <p className="text-[10px] text-slate-500 font-medium">Lifetime Spend</p>
+                    </div>
+                    <div className="text-center p-2 bg-purple-50 rounded-lg">
+                      <Users className="w-3.5 h-3.5 text-purple-600 mx-auto mb-1" />
+                      <p className="font-extrabold text-slate-900 text-sm">{viewCustomer.joinedDate}</p>
+                      <p className="text-[10px] text-slate-500 font-medium">Member Since</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <a
+                      href={`mailto:${viewCustomer.email}`}
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+                    >
+                      <Mail className="w-3.5 h-3.5" /> Contact
+                    </a>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setViewCustomer(null)}>
+                      Close
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

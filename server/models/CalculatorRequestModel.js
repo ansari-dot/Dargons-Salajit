@@ -93,6 +93,28 @@ class CalculatorRequestModel{
         return rows;
     }
 
+    /**
+     * Admin list: the same rows (newest first) plus the requesting user's
+     * contact details. LEFT JOIN so guest requests (user_id NULL) still show.
+     */
+    static async findAllWithUser (){
+        const [rows] = await db.query(
+              `
+            SELECT
+                cr.*,
+                u.first_name AS user_first_name,
+                u.last_name  AS user_last_name,
+                u.email      AS user_email,
+                u.phone      AS user_phone
+            FROM calculator_requests cr
+            LEFT JOIN users u ON u.id = cr.user_id
+            ORDER BY cr.created_at DESC
+            `
+        );
+
+        return rows;
+    }
+
     static async findById(requestId){
         const [rows] = await db.query(
              `

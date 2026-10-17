@@ -56,6 +56,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const paymentRoutes   = require('./routes/paymentRoutes');
 const dealRoutes      = require('./routes/dealRoutes');
 const brandRoutes     = require('./routes/brandRoutes');
+const adminRoutes     = require('./routes/admin.route');
 const calculatorRoutes        = require('./routes/calculator.route');
 const calculatorRequestRoutes = require('./routes/calculatorRequest.route');
 const router = require('./routes/location.js')
@@ -76,6 +77,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/payments',  paymentRoutes);
 app.use('/api/deals',     dealRoutes);
 app.use('/api/brands',    brandRoutes);
+app.use('/api/admin',     adminRoutes);
 app.use('/api/calculator', calculatorRoutes);
 app.use('/api/calculator/requests', calculatorRequestRoutes);
 app.use('/api/location',router)

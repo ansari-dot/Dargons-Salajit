@@ -37,7 +37,8 @@ function CartAuthSync({ children }: { children: React.ReactNode }) {
  *
  *   • resolves the browser IP with api.ipify.org (VPN aware)
  *   • asks our backend to geolocate that exact IP
- *   • Pakistan → PKR, any other country → USD
+ *   • Pakistan → PKR · Arab League → AED/SAR/QAR/… · any other country → its
+ *     own local currency (USD is only the fallback when there is no mapping)
  *
  * It re-checks every 10 seconds (plus on tab focus / visibility / reconnect) so
  * turning a VPN on or off updates every price component with no page refresh.

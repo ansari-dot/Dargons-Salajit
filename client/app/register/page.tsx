@@ -12,7 +12,7 @@ export default function RegisterPage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
 
-  const { isAuthenticated, isLoading, error } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, isLoading, error, pendingVerificationEmail } = useAppSelector((state) => state.auth);
 
   const [formData, setFormData] = useState({
     first_name: '',
@@ -38,6 +38,13 @@ export default function RegisterPage() {
       router.push('/');
     }
   }, [isAuthenticated, router]);
+
+  // After registration → send the user to the email verification page
+  useEffect(() => {
+    if (pendingVerificationEmail) {
+      router.push(`/verify-email?email=${encodeURIComponent(pendingVerificationEmail)}`);
+    }
+  }, [pendingVerificationEmail, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -232,7 +239,7 @@ export default function RegisterPage() {
       {/* Switch to Login */}
       <div className="auth-switch-text">
         Already have an account?{' '}
-        <Link href="/register" className="auth-switch-link">
+        <Link href="/login" className="auth-switch-link">
           Log In
         </Link>
       </div>

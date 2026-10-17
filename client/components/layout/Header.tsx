@@ -23,6 +23,19 @@ export default function Header() {
   const user = useAppSelector((state) => state.auth.user);
 
   const [isCurrencyMenuOpen, setIsCurrencyMenuOpen] = useState(false);
+  const [currencyQuery, setCurrencyQuery] = useState('');
+
+  // The picker lists every world currency (150+), so type-to-filter by code
+  // or name keeps it usable.
+  const visibleCurrencies = SUPPORTED_CURRENCIES.filter((code) => {
+    const query = currencyQuery.trim().toLowerCase();
+    if (!query) return true;
+
+    return (
+      code.toLowerCase().includes(query) ||
+      getCurrencyName(code).toLowerCase().includes(query)
+    );
+  });
 
   return (
     <header className="header">
@@ -63,7 +76,11 @@ export default function Header() {
               <div className="header__dropdown" style={{ position: 'relative' }}>
                 <button
                   type="button"
-                  onClick={() => setIsCurrencyMenuOpen((open) => !open)}
+                  onClick={() => {
+                    const willOpen = !isCurrencyMenuOpen;
+                    if (willOpen) setCurrencyQuery('');
+                    setIsCurrencyMenuOpen(willOpen);
+                  }}
                   aria-haspopup="listbox"
                   aria-expanded={isCurrencyMenuOpen}
                   aria-label={`Currency: ${currency} (${currencyName})`}
@@ -123,7 +140,27 @@ export default function Header() {
                         Current: {currency} · {currencyName}
                       </li>
 
-                      {SUPPORTED_CURRENCIES.map((code) => {
+                      {/* Type-to-filter — the list holds every world currency */}
+                      <li style={{ padding: '6px 6px 8px' }}>
+                        <input
+                          type="search"
+                          value={currencyQuery}
+                          onChange={(event) => setCurrencyQuery(event.target.value)}
+                          placeholder="Search currency…"
+                          aria-label="Search currency"
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            padding: '6px 8px',
+                            fontSize: '0.8rem',
+                            border: '1px solid #e2e2e2',
+                            borderRadius: '6px',
+                            outline: 'none',
+                          }}
+                        />
+                      </li>
+
+                      {visibleCurrencies.map((code) => {
                         const isActive = code === currency;
                         return (
                           <li key={code}>
@@ -160,6 +197,19 @@ export default function Header() {
                           </li>
                         );
                       })}
+
+                      {visibleCurrencies.length === 0 && (
+                        <li
+                          style={{
+                            padding: '10px',
+                            fontSize: '0.8rem',
+                            color: '#8a8a8a',
+                            textAlign: 'center',
+                          }}
+                        >
+                          No currency matches “{currencyQuery.trim()}”
+                        </li>
+                      )}
                     </ul>
                   </>
                 )}

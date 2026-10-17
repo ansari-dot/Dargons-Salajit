@@ -185,6 +185,17 @@ const initDb = async () => {
     await addColumnIfNotExist('users', 'streetAddress', 'VARCHAR(255) NULL');
     await addColumnIfNotExist('users', 'postcode', 'VARCHAR(255) NULL');
     await addColumnIfNotExist('users', 'refresh_token', 'TEXT NULL');
+    // Email verification (existing users default to verified so nobody is locked out)
+    await addColumnIfNotExist('users', 'email_verified', 'TINYINT(1) NOT NULL DEFAULT 1');
+    await addColumnIfNotExist('users', 'verification_code', 'VARCHAR(64) NULL');
+    await addColumnIfNotExist('users', 'verification_expires_at', 'DATETIME NULL');
+    await addColumnIfNotExist('users', 'verification_sent_at', 'DATETIME NULL');
+    // Password reset (hashed token + expiry + resend cooldown)
+    await addColumnIfNotExist('users', 'reset_token', 'VARCHAR(64) NULL');
+    await addColumnIfNotExist('users', 'reset_expires_at', 'DATETIME NULL');
+    await addColumnIfNotExist('users', 'reset_sent_at', 'DATETIME NULL');
+    // Self-heal: widen the code column if it was created too narrow earlier
+    try { await db.query(`ALTER TABLE users MODIFY COLUMN verification_code VARCHAR(64) NULL`); } catch (e) { }
     try { await db.query(`UPDATE users SET first_name = COALESCE(first_name, firstName)`); } catch (e) { }
     try { await db.query(`UPDATE users SET firstName = COALESCE(firstName, first_name)`); } catch (e) { }
     try { await db.query(`UPDATE users SET last_name = COALESCE(last_name, lastName)`); } catch (e) { }

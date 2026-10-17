@@ -57,9 +57,9 @@ class DashboardModel {
       LIMIT 5
     `);
 
-    // 6. Recent 5 Customers (using createdAt column for users table)
+    // 6. Recent 5 Customers (users table uses created_at; no `name` column exists)
     const [recentCustomersRows] = await db.query(`
-      SELECT id, COALESCE(name, CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))) as name, email, role, createdAt as joined_date
+      SELECT id, COALESCE(NULLIF(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')), ''), email, CONCAT('Customer #', id)) as name, email, role, COALESCE(created_at, NOW()) as joined_date
       FROM users
       ORDER BY id DESC
       LIMIT 5

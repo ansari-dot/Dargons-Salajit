@@ -1,4 +1,4 @@
-const CalculatorRequestModel  = require('../models/calculatorRequestModel');
+const CalculatorRequestModel  = require('../models/CalculatorRequestModel');
 
 const createCalculatorRequest = async (data) => {
     const requestId = await CalculatorRequestModel.createRequest(data)
@@ -10,7 +10,10 @@ const createCalculatorRequest = async (data) => {
 }
 
 const getAllCalculatorRequests = async()=>{
-    return await CalculatorRequestModel.findAll().sort({ createdAt: -1 })
+    // Rows already arrive newest-first from the model (ORDER BY created_at
+    // DESC) — do NOT call Array#sort with a mongo-style comparator here, it
+    // throws a TypeError and breaks the admin endpoint.
+    return await CalculatorRequestModel.findAllWithUser();
 }
 
 const getCalculatorRequestById = async(requestId)=>{
@@ -19,7 +22,7 @@ const getCalculatorRequestById = async(requestId)=>{
 }
 
 const updateCalculatorRequestStatus  = async(Id,status,adminNote)=>{
-    if(!status === 'pending' && !status === 'approved' && !status === 'rejected'){
+    if(!["pending", "approved", "rejected"].includes(String(status || "").toLowerCase())){
         throw new Error('Invalid status value. Must be "pending", "approved", or "rejected".');
     }
 

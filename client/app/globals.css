@@ -12852,3 +12852,117 @@ img {
     width: 100%;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Email Verification Page (6-digit code)
+   ───────────────────────────────────────────────────────────── */
+.auth-code-sent-to {
+  font-size: 0.82rem;
+  color: #777777;
+  margin-bottom: 18px;
+}
+
+.auth-code-sent-to strong {
+  color: #222222;
+  font-weight: 700;
+}
+
+.auth-code-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #636830;
+  margin-bottom: 10px;
+}
+
+.auth-code-group {
+  display: flex;
+  gap: 12px;
+}
+
+.auth-code-input {
+  width: 54px;
+  height: 58px;
+  border: 1px solid #d8d2bf;
+  border-radius: 10px;
+  background-color: #ffffff;
+  text-align: center;
+  font-family: var(--font-primary);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #222222;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.auth-code-input:focus {
+  outline: none;
+  border-color: #636830;
+  box-shadow: 0 0 0 3px rgba(99, 104, 48, 0.12);
+}
+
+.auth-code-input.filled {
+  border-color: #636830;
+  background-color: #fdfdf9;
+}
+
+.auth-resend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #777777;
+  margin-top: 14px;
+}
+
+.auth-resend-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #636830;
+  cursor: pointer;
+}
+
+.auth-resend-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.auth-resend-btn:disabled {
+  color: #aaaaaa;
+  cursor: default;
+}
+
+.auth-back-login-wrap {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.auth-back-login {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #636830;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-back-login:hover {
+  color: #4f5426;
+}
+
+@media (max-width: 576px) {
+  .auth-code-group {
+    gap: 8px;
+  }
+
+  .auth-code-input {
+    width: 44px;
+    height: 50px;
+    font-size: 1.15rem;
+  }
+}
+

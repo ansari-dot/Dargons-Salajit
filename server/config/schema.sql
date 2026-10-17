@@ -15,6 +15,13 @@ CREATE TABLE IF NOT EXISTS users (
   password VARCHAR(255) NOT NULL,
   role ENUM('customer', 'admin') DEFAULT 'customer',
   refresh_token TEXT NULL,
+  email_verified TINYINT(1) NOT NULL DEFAULT 1,
+  verification_code VARCHAR(64) NULL,
+  verification_expires_at DATETIME NULL,
+  verification_sent_at DATETIME NULL,
+  reset_token VARCHAR(64) NULL,
+  reset_expires_at DATETIME NULL,
+  reset_sent_at DATETIME NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

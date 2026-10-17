@@ -28,7 +28,7 @@ class UserService {
     }
 
     const result = await UserModel.create(userData);
-    return await UserModel.findById(result.insertId);
+    return await UserModel.findById(result.id ?? result.insertId);
   }
 
   // Update user

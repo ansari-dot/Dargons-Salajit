@@ -148,7 +148,8 @@ export const fetchUserCurrency = createAsyncThunk<
       throw new Error('Country could not be resolved for this IP');
     }
 
-    /* 3 ── Pakistan → PKR · Arab country → AED/SAR/QAR/… · else USD. */
+    /* 3 ── Pakistan → PKR · Arab country → AED/SAR/QAR/… · any other country
+     *      → its own local currency (EUR, GBP, INR, …) with USD as fallback. */
     const currency = String(
       location.currency || resolveCurrencyForCountry(countryCode)
     ).toUpperCase();

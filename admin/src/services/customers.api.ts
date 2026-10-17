@@ -38,59 +38,70 @@ export interface CreateCustomerPayload {
   role?: string;
 }
 
+// Maps a raw `users` row from the admin backend to the UI Customer type
+const mapUserToCustomer = (u: any): Customer => {
+  const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'Customer';
+  const id = u.id ?? u.userId ?? Date.now();
+  return {
+    id: String(id),
+    name: fullName,
+    email: u.email || '',
+    ordersCount: Number(u.orders_count || 0),
+    totalSpent: Number(u.total_spent || 0),
+    joinedDate: u.created_at
+      ? formatDate(u.created_at)
+      : u.id
+        ? formatDate(new Date().toISOString())
+        : 'Just now',
+    avatar: getAvatar(fullName, id),
+    phone: u.phone || '',
+    city: u.city || '',
+    street_address: u.street_address || '',
+    postal_code: u.postal_code || '',
+    role: u.role || 'customer'
+  };
+};
+
 export const customersApi = {
   getCustomers: async (): Promise<Customer[]> => {
     try {
-      const response = await api.get('/users');
+      // Admin backend: GET /api/admin/customer (order stats included)
+      const response = await api.get('/admin/customer');
       const rawData = response.data?.data || response.data || [];
       if (!Array.isArray(rawData) || rawData.length === 0) {
         return customersData;
       }
-      return rawData.map((u: any) => {
-        const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'Customer';
-        return {
-          id: String(u.id),
-          name: fullName,
-          email: u.email || '',
-          ordersCount: Number(u.orders_count || 0),
-          totalSpent: Number(u.total_spent || 0),
-          joinedDate: formatDate(u.created_at),
-          avatar: getAvatar(fullName, u.id),
-          phone: u.phone || '',
-          city: u.city || '',
-          street_address: u.street_address || '',
-          postal_code: u.postal_code || '',
-          role: u.role || 'customer'
-        };
-      });
+      return rawData.map(mapUserToCustomer);
     } catch (error) {
-      console.warn('Backend /api/users unavailable, falling back to static data:', error);
+      console.warn('Backend /api/admin/customer unavailable, falling back to static data:', error);
       return customersData;
+    }
+  },
+
+  // Show a single customer: GET /api/admin/customer/:id
+  getCustomer: async (id: string): Promise<Customer | null> => {
+    try {
+      const response = await api.get(`/admin/customer/${id}`);
+      const raw = response.data?.data || response.data;
+      if (!raw || typeof raw !== 'object') return null;
+      return mapUserToCustomer(raw);
+    } catch (error) {
+      console.warn(`Backend /api/admin/customer/${id} unavailable:`, error);
+      // Fallback: find the customer in the list / static data
+      const list = await customersApi.getCustomers();
+      return list.find((c) => String(c.id) === String(id)) || null;
     }
   },
 
   createCustomer: async (payload: CreateCustomerPayload): Promise<Customer> => {
     const response = await api.post('/users', payload);
     const created = response.data?.data || response.data;
-    const fullName = `${created.first_name || payload.first_name} ${created.last_name || payload.last_name}`.trim();
-    return {
-      id: String(created.id || Date.now()),
-      name: fullName,
-      email: created.email || payload.email,
-      ordersCount: 0,
-      totalSpent: 0,
-      joinedDate: 'Just now',
-      avatar: getAvatar(fullName, created.id || Date.now()),
-      phone: payload.phone || '',
-      city: payload.city || '',
-      street_address: payload.street_address || '',
-      postal_code: payload.postal_code || '',
-      role: payload.role || 'customer'
-    };
+    return mapUserToCustomer({ ...created, ...payload });
   },
 
   deleteCustomer: async (id: string): Promise<void> => {
-    await api.delete(`/users/${id}`);
+    // Admin backend: DELETE /api/admin/customer/:id
+    await api.delete(`/admin/customer/${id}`);
   }
 };
 

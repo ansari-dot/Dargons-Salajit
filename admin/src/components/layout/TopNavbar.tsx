@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import {
   Search,
   Bell,
@@ -13,6 +15,8 @@ import {
   LogOut,
 } from 'lucide-react';
 import { Avatar } from '../common/Avatar';
+import { logoutLocally } from '../../store/slices/authSlice';
+import { useAppSelector } from '../../store';
 
 interface TopNavbarProps {
   onMobileMenuToggle: () => void;
@@ -25,6 +29,13 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   searchQuery = '',
   onSearchChange,
 }) => {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const adminUser = useAppSelector((state) => state.adminAuth.user);
+  const adminName = adminUser
+    ? `${adminUser.first_name || ''} ${adminUser.last_name || ''}`.trim() || adminUser.email
+    : 'Admin';
+  const adminEmail = adminUser?.email || '';
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -141,14 +152,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             className="flex items-center gap-3 pl-1 pr-1.5 py-1 rounded-xl hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
           >
             <Avatar
-              name="Arsalan Ansari"
+              name={adminName}
               src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"
               size="md"
               className="ring-2 ring-slate-100"
             />
             <div className="hidden lg:flex flex-col text-left">
               <span className="text-[13px] font-bold text-slate-800 leading-tight">
-                Arsalan Ansari
+                {adminName}
               </span>
               <span className="text-[11px] text-slate-400 font-medium">Admin</span>
             </div>
@@ -158,8 +169,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           {showProfileMenu && (
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 p-1.5 z-50 animate-in fade-in slide-in-from-top-2">
               <div className="px-3 py-2 border-b border-slate-100">
-                <p className="text-xs font-bold text-slate-800">Arsalan Ansari</p>
-                <p className="text-[11px] text-slate-500 truncate">0349ansari@gmail.com</p>
+                <p className="text-xs font-bold text-slate-800">{adminName}</p>
+                <p className="text-[11px] text-slate-500 truncate">{adminEmail}</p>
               </div>
               <div className="py-1">
                 <button
@@ -183,7 +194,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   type="button"
                   onClick={() => {
                     setShowProfileMenu(false);
-                    alert('Logging out from SALAJIT dashboard');
+                    dispatch(logoutLocally());
+                    navigate('/login');
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                 >

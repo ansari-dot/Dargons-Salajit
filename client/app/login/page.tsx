@@ -99,16 +99,9 @@ export default function LoginPage() {
 
         {/* Forgot Password Link */}
         <div className="auth-forgot-wrap">
-          <a
-            href="#forgot"
-            onClick={(e) => {
-              e.preventDefault();
-              alert('Password reset link sent to your email.');
-            }}
-            className="auth-forgot-link"
-          >
+          <Link href="/forgot-password" className="auth-forgot-link">
             Forgot password?
-          </a>
+          </Link>
         </div>
 
         {/* Submit Button */}

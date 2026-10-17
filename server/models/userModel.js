@@ -7,7 +7,7 @@ class UserModel {
     const [rows] = await db.query(
       `SELECT 
         u.id, 
-        COALESCE(u.first_name, u.firstName, u.name, '') AS first_name, 
+        COALESCE(u.first_name, u.firstName, '') AS first_name, 
         COALESCE(u.last_name, u.lastName, '') AS last_name, 
         u.email, 
         COALESCE(u.phone, '') AS phone, 
@@ -15,7 +15,7 @@ class UserModel {
         COALESCE(u.city, '') AS city, 
         COALESCE(u.postal_code, u.postcode, '') AS postal_code, 
         COALESCE(u.role, 'customer') AS role, 
-        COALESCE(u.createdAt, NOW()) AS created_at,
+        COALESCE(u.created_at, NOW()) AS created_at,
         COUNT(o.id) AS orders_count,
         COALESCE(SUM(o.grand_total), 0) AS total_spent
        FROM users u
@@ -30,10 +30,36 @@ class UserModel {
   static async findById(id) {
     const [rows] = await db.query(
       `SELECT id, 
-        COALESCE(first_name, firstName, name, '') AS first_name, 
+        COALESCE(first_name, firstName, '') AS first_name, 
         COALESCE(last_name, lastName, '') AS last_name, 
-        email, phone, street_address, city, postal_code, role, COALESCE(createdAt, NOW()) AS created_at 
+        email, phone, street_address, city, postal_code, role, COALESCE(created_at, NOW()) AS created_at 
        FROM users WHERE id = ?`,
+      [id]
+    );
+    return rows[0] || null;
+  }
+
+  // Find user by ID including order stats (used by admin "show customer")
+  static async findByIdWithStats(id) {
+    const [rows] = await db.query(
+      `SELECT 
+        u.id, 
+        COALESCE(u.first_name, u.firstName, '') AS first_name, 
+        COALESCE(u.last_name, u.lastName, '') AS last_name, 
+        u.email, 
+        COALESCE(u.phone, '') AS phone, 
+        COALESCE(u.street_address, u.streetAddress, '') AS street_address, 
+        COALESCE(u.city, '') AS city, 
+        COALESCE(u.postal_code, u.postcode, '') AS postal_code, 
+        COALESCE(u.role, 'customer') AS role, 
+        COALESCE(u.created_at, NOW()) AS created_at,
+        COALESCE(u.email_verified, 1) AS email_verified,
+        COUNT(o.id) AS orders_count,
+        COALESCE(SUM(o.grand_total), 0) AS total_spent
+       FROM users u
+       LEFT JOIN orders o ON (o.user_id = u.id OR (u.email IS NOT NULL AND u.email != '' AND o.email = u.email))
+       WHERE u.id = ?
+       GROUP BY u.id`,
       [id]
     );
     return rows[0] || null;
@@ -67,6 +93,53 @@ class UserModel {
     await db.query(`UPDATE users SET refresh_token = NULL WHERE id = ?`, [id]);
   }
 
+  // Count all users
+  static async countAll() {
+    const [rows] = await db.query(`SELECT COUNT(*) AS count FROM users`);
+    return Number(rows[0]?.count || 0);
+  }
+
+  // Save a 6-digit email verification code (with expiry) for a user
+  static async setVerificationCode(id, code, expiresAt) {
+    await db.query(
+      `UPDATE users SET verification_code = ?, verification_expires_at = ?, verification_sent_at = NOW() WHERE id = ?`,
+      [code, expiresAt, id]
+    );
+  }
+
+  // Mark a user's email as verified and clear the verification code
+  static async markEmailVerified(id) {
+    await db.query(
+      `UPDATE users SET email_verified = 1, verification_code = NULL, verification_expires_at = NULL WHERE id = ?`,
+      [id]
+    );
+  }
+
+  // Save a hashed password-reset token (with expiry) for a user
+  static async setResetToken(id, tokenHash, expiresAt) {
+    await db.query(
+      `UPDATE users SET reset_token = ?, reset_expires_at = ?, reset_sent_at = NOW() WHERE id = ?`,
+      [tokenHash, expiresAt, id]
+    );
+  }
+
+  // Find user by password-reset token hash
+  static async findByResetToken(tokenHash) {
+    const [rows] = await db.query(
+      `SELECT * FROM users WHERE reset_token = ?`,
+      [tokenHash]
+    );
+    return rows[0] || null;
+  }
+
+  // Set a new password and invalidate the reset token + any active sessions
+  static async resetPassword(id, hashedPassword) {
+    await db.query(
+      `UPDATE users SET password = ?, reset_token = NULL, reset_expires_at = NULL, refresh_token = NULL WHERE id = ?`,
+      [hashedPassword, id]
+    );
+  }
+
   // Create new user with hashed password
   static async create(userData) {
     const {
@@ -80,7 +153,8 @@ class UserModel {
       city = '',
       postal_code = '',
       password = 'Password123!',
-      role = 'customer'
+      role = 'customer',
+      email_verified = 1
     } = userData;
 
     const fName = first_name || firstName || '';
@@ -91,9 +165,9 @@ class UserModel {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const [result] = await db.query(
-      `INSERT INTO users (first_name, firstName, last_name, lastName, email, phone, street_address, streetAddress, city, postal_code, postcode, password, role)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [fName, fName, lName, lName, email, phone, street_address, street_address, city, postal_code, postal_code, hashedPassword, role]
+      `INSERT INTO users (first_name, firstName, last_name, lastName, email, phone, street_address, streetAddress, city, postal_code, postcode, password, role, email_verified)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [fName, fName, lName, lName, email, phone, street_address, street_address, city, postal_code, postal_code, hashedPassword, role, email_verified]
     );
 
     return { id: result.insertId, first_name: fName, last_name: lName, email, phone, city, role };
@@ -104,7 +178,6 @@ class UserModel {
     return await bcrypt.compare(enteredPassword, hashedPassword);
   }
 
-  // Update user profile
   static async update(id, userData) {
     const fields = [];
     const values = [];

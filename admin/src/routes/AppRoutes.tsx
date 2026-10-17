@@ -1,8 +1,11 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
+import { ProtectedRoute } from './ProtectedRoute';
+import { LoginPage } from '../pages/Login/Login';
 import { Dashboard } from '../pages/Dashboard/Dashboard';
 import { OrdersPage } from '../pages/Orders/Orders';
+import { QuotationsPage } from '../pages/Quotations/Quotations';
 import { ProductsPage } from '../pages/Products/Products';
 import { CustomersPage } from '../pages/Customers/Customers';
 import { InventoryPage } from '../pages/Inventory/Inventory';
@@ -19,10 +22,22 @@ import { UploadBrandPage } from '../pages/Brands/UploadBrandPage';
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
-      <Route path="/" element={<DashboardLayout />}>
+      {/* Public */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Everything below requires an authenticated admin */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="quotations" element={<QuotationsPage />} />
         <Route path="products" element={<ProductsPage />} />
         <Route path="brands/upload" element={<UploadBrandPage />} />
         <Route path="deals" element={<DealsPage />} />

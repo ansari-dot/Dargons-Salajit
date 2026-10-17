@@ -10,9 +10,26 @@ interface AuthLayoutProps {
   eyebrow: string;
   title: string;
   subtitle: string;
+  /** Override the left hero panel headline (defaults to the brand headline) */
+  heroTitle?: React.ReactNode;
+  /** Override the left hero panel supporting copy */
+  heroSubtitle?: string;
+  /** Href for the top-right helper link (defaults to Home) */
+  topLinkHref?: string;
+  /** Label for the top-right helper link (defaults to "Back to Home") */
+  topLinkText?: string;
 }
 
-export default function AuthLayout({ children, eyebrow, title, subtitle }: AuthLayoutProps) {
+export default function AuthLayout({
+  children,
+  eyebrow,
+  title,
+  subtitle,
+  heroTitle,
+  heroSubtitle,
+  topLinkHref = '/',
+  topLinkText = 'Back to Home',
+}: AuthLayoutProps) {
   return (
     <div className="auth-split-wrapper">
       {/* ── Left Side: Hero Visual Panel ── */}
@@ -44,13 +61,17 @@ export default function AuthLayout({ children, eyebrow, title, subtitle }: AuthL
 
           {/* Main Headline */}
           <h1 className="auth-hero-title">
-            Natural <br />
-            Care for a <br />
-            Healthier You
+            {heroTitle ?? (
+              <>
+                Natural <br />
+                Care for a <br />
+                Healthier You
+              </>
+            )}
           </h1>
 
           <p className="auth-hero-subtitle">
-            Premium herbal products for a better, balanced and natural lifestyle.
+            {heroSubtitle ?? 'Premium herbal products for a better, balanced and natural lifestyle.'}
           </p>
 
           {/* Feature Badges with Professional Lucide Icons */}
@@ -95,9 +116,9 @@ export default function AuthLayout({ children, eyebrow, title, subtitle }: AuthL
       <div className="auth-split-form">
         {/* Top Header Link */}
         <div className="auth-form-top-link">
-          <Link href="/" className="auth-back-link">
+          <Link href={topLinkHref} className="auth-back-link">
             <ArrowLeft className="w-4 h-4 text-slate-500" />
-            <span>Back to Home</span>
+            <span>{topLinkText}</span>
           </Link>
         </div>
 
