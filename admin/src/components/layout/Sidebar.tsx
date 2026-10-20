@@ -21,6 +21,7 @@ import {
   Flame,
   Tag,
   ScrollText,
+  Calculator,
 } from 'lucide-react';
 import { BrandLogo } from '../common/BrandLogo';
 
@@ -41,6 +42,7 @@ const mainNavItems: NavItemConfig[] = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Orders', path: '/orders', icon: ShoppingBag, badge: 12 },
   { name: 'Quotations', path: '/quotations', icon: ScrollText },
+  { name: 'Calculator Setup', path: '/calculator-setup', icon: Calculator },
   { name: 'Products', path: '/products', icon: Package },
   { name: 'Upload Brand', path: '/brands/upload', icon: Tag },
   { name: 'Deals & Offers', path: '/deals', icon: Flame },
@@ -184,7 +186,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {!collapsed && (
           <div className="pt-6 pb-2">
             <div className="relative overflow-hidden rounded-2xl p-4 text-white shadow-sm group">
-              {/* Background mountain image with dark gradient overlay */}
               <img
                 src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80"
                 alt="Himalayan Mountain Peaks"

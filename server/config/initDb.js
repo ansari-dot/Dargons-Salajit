@@ -205,6 +205,14 @@ const initDb = async () => {
     try { await db.query(`UPDATE users SET postal_code = COALESCE(postal_code, postcode)`); } catch (e) { }
     try { await db.query(`UPDATE users SET postcode = COALESCE(postcode, postal_code)`); } catch (e) { }
 
+    // Private Label Calculator schema & default seeds
+    try {
+      const migrateCalculator = require('../scripts/initCalculatorSchema.cjs');
+      await migrateCalculator();
+    } catch (e) {
+      console.warn('⚠️ Calculator migration notice:', e.message);
+    }
+
     console.log('✅ Database tables & schema migrations initialized successfully.');
   } catch (error) {
     const dbErrorCode = error.code || (Array.isArray(error.errors) && error.errors.find((e) => e && e.code)?.code);
