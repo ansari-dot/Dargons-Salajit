@@ -30,9 +30,11 @@ export function useDashboard() {
   const [timeRange, setTimeRange] = useState<string>('Last 7 days');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const [
         statsRes,
@@ -70,6 +72,7 @@ export function useDashboard() {
       setQuickActions(actionsRes);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load dashboard data.');
     } finally {
       setIsLoading(false);
     }
@@ -95,6 +98,7 @@ export function useDashboard() {
     searchQuery,
     setSearchQuery,
     isLoading,
+    error,
     refresh: fetchDashboardData,
   };
 }

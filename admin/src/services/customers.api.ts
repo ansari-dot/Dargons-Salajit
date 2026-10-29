@@ -1,16 +1,11 @@
 import { api } from './api';
 import { Customer } from '../types';
-import { customersData } from '../data/customers.data';
 
 const formatDate = (dateString?: string) => {
-  if (!dateString) return 'Sep 20, 2025';
-  try {
-    const d = new Date(dateString);
-    if (isNaN(d.getTime())) return 'Sep 20, 2025';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch (e) {
-    return 'Sep 20, 2025';
-  }
+  if (!dateString) return '—';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 const getAvatar = (name: string, id: string | number) => {
@@ -48,11 +43,7 @@ const mapUserToCustomer = (u: any): Customer => {
     email: u.email || '',
     ordersCount: Number(u.orders_count || 0),
     totalSpent: Number(u.total_spent || 0),
-    joinedDate: u.created_at
-      ? formatDate(u.created_at)
-      : u.id
-        ? formatDate(new Date().toISOString())
-        : 'Just now',
+    joinedDate: formatDate(u.created_at),
     avatar: getAvatar(fullName, id),
     phone: u.phone || '',
     city: u.city || '',
@@ -68,13 +59,13 @@ export const customersApi = {
       // Admin backend: GET /api/admin/customer (order stats included)
       const response = await api.get('/admin/customer');
       const rawData = response.data?.data || response.data || [];
-      if (!Array.isArray(rawData) || rawData.length === 0) {
-        return customersData;
+      if (!Array.isArray(rawData)) {
+        throw new Error('The customers API returned an invalid response.');
       }
       return rawData.map(mapUserToCustomer);
     } catch (error) {
-      console.warn('Backend /api/admin/customer unavailable, falling back to static data:', error);
-      return customersData;
+      console.error('Failed to load customers:', error);
+      return [];
     }
   },
 
@@ -104,4 +95,3 @@ export const customersApi = {
     await api.delete(`/admin/customer/${id}`);
   }
 };
-

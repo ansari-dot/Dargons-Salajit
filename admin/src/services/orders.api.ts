@@ -1,5 +1,4 @@
 import { api } from './api';
-import { ordersData } from '../data/orders.data';
 import { Order, OrderStatus } from '../types';
 
 function mapStatus(status: string): OrderStatus {
@@ -48,20 +47,16 @@ export const ordersApi = {
           };
         });
       }
-      return ordersData;
-    } catch (err) {
-      console.warn('Error fetching orders, using local fallback:', err);
-      return ordersData;
+      throw new Error('The orders API returned an invalid response.');
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+      return [];
     }
   },
 
   getOrderById: async (id: string): Promise<Order | undefined> => {
-    try {
-      const orders = await ordersApi.getOrders();
-      return orders.find((o) => o.id === id || o.orderNumber === id);
-    } catch (err) {
-      return ordersData.find((o) => o.id === id);
-    }
+    const orders = await ordersApi.getOrders();
+    return orders.find((o) => o.id === id || o.orderNumber === id);
   },
 
   updateOrderStatus: async (id: string, status: string): Promise<boolean> => {

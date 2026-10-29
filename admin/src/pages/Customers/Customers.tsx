@@ -5,6 +5,7 @@ import { Card } from '../../components/common/Card';
 import { Avatar } from '../../components/common/Avatar';
 import { Button } from '../../components/common/Button';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { isDisposableEmail } from '../../lib/disposableEmail';
 import { 
   Search, 
   Mail, 
@@ -28,6 +29,7 @@ export const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showDisposableOnly, setShowDisposableOnly] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const toast = useToast();
@@ -53,7 +55,12 @@ export const CustomersPage: React.FC = () => {
     setIsLoading(true);
     try {
       const data = await customersApi.getCustomers();
-      setCustomers(data);
+      // Flag customers with disposable/temporary email addresses
+      const flagged = data.map((c) => ({
+        ...c,
+        isDisposableEmail: isDisposableEmail(c.email),
+      }));
+      setCustomers(flagged);
     } catch (err) {
       console.error('Failed to load customers:', err);
     } finally {
@@ -157,10 +164,11 @@ export const CustomersPage: React.FC = () => {
 
   const filteredCustomers = customers.filter(
     (c) =>
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.phone && c.phone.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (c.city && c.city.toLowerCase().includes(searchTerm.toLowerCase()))
+      (!showDisposableOnly || c.isDisposableEmail) &&
+      (c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.phone && c.phone.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (c.city && c.city.toLowerCase().includes(searchTerm.toLowerCase())))
   );
 
   // Summary Metrics
@@ -168,6 +176,7 @@ export const CustomersPage: React.FC = () => {
   const activeBuyersCount = customers.filter(c => c.ordersCount > 0).length;
   const totalLifetimeSpent = customers.reduce((acc, c) => acc + (c.totalSpent || 0), 0);
   const avgLifetimeSpent = totalCustomersCount > 0 ? totalLifetimeSpent / totalCustomersCount : 0;
+  const disposableEmailCount = customers.filter(c => c.isDisposableEmail).length;
 
   return (
     <div className="space-y-6">
@@ -254,6 +263,16 @@ export const CustomersPage: React.FC = () => {
             <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">{formatCurrency(avgLifetimeSpent)}</h3>
           </div>
         </Card>
+
+        <Card className="p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+            <Mail className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 font-medium">Temp Email Accounts</p>
+            <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">{disposableEmailCount}</h3>
+          </div>
+        </Card>
       </div>
 
       {/* Filter & Search Bar */}
@@ -267,6 +286,20 @@ export const CustomersPage: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           />
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDisposableOnly(!showDisposableOnly)}
+            className={`flex items-center gap-1.5 ${showDisposableOnly ? 'bg-rose-50 border-rose-200 text-rose-700' : ''}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+            {showDisposableOnly ? 'Show All Customers' : 'Show Temp Emails Only'}
+            <span className="ml-auto text-[10px] font-bold bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded">
+              {customers.filter(c => c.isDisposableEmail).length}
+            </span>
+          </Button>
         </div>
       </Card>
 
@@ -321,6 +354,14 @@ export const CustomersPage: React.FC = () => {
 
                     <td className="py-3 px-4">
                       <p className="text-slate-800 font-medium">{cust.email}</p>
+                      {cust.isDisposableEmail && (
+                        <span className="inline-flex items-center gap-1 mt-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                          <span className="text-[10px] text-rose-600 font-semibold uppercase tracking-wider">
+                            Temp Email
+                          </span>
+                        </span>
+                      )}
                       {cust.phone && (
                         <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
                           <Phone className="w-3 h-3" /> {cust.phone}
@@ -565,7 +606,17 @@ export const CustomersPage: React.FC = () => {
                       <Mail className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
                       <div>
                         <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Email</p>
-                        <p className="text-slate-800 font-medium">{viewCustomer.email || 'Not set'}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-slate-800 font-medium">{viewCustomer.email || 'Not set'}</p>
+                          {viewCustomer.isDisposableEmail && (
+                            <span className="inline-flex items-center gap-0.5">
+                              <span className="w-1 h-1 rounded-full bg-rose-500"></span>
+                              <span className="text-[9px] text-rose-600 font-semibold uppercase tracking-wider">
+                                Temp Email
+                              </span>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-start gap-2">

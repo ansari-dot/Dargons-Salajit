@@ -100,16 +100,17 @@ const getAdminProductsController = async (req, res) => {
 const updateAdminProductController = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, moq, min_product_cost, description, is_active } = req.body;
+    const { name, unit_type, moq, min_product_cost, description, is_active } = req.body;
     await db.query(
       `UPDATE calculator_products
        SET name = COALESCE(?, name),
+           unit_type = COALESCE(?, unit_type),
            moq = COALESCE(?, moq),
            min_product_cost = COALESCE(?, min_product_cost),
            description = COALESCE(?, description),
            is_active = COALESCE(?, is_active)
        WHERE id = ?`,
-      [name, moq, min_product_cost, description, is_active, id]
+      [name, unit_type, moq, min_product_cost, description, is_active, id]
     );
     return res.json({ success: true, message: 'Product updated successfully' });
   } catch (err) {

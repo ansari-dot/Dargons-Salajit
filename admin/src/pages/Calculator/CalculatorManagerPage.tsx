@@ -437,6 +437,20 @@ export const CalculatorManagerPage: React.FC = () => {
                 />
               </div>
               <div>
+                <label className="font-semibold block mb-1">Unit Type (Packing)</label>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={editingProduct.unit_type}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, unit_type: e.target.value })}
+                >
+                  <option value="grams">Grams (g)</option>
+                  <option value="ml">Milliliters (ml)</option>
+                  <option value="capsules">Capsules</option>
+                  <option value="blisters">Blisters</option>
+                  <option value="units">Units</option>
+                </select>
+              </div>
+              <div>
                 <label className="font-semibold block mb-1">MOQ</label>
                 <input
                   type="number"
@@ -490,6 +504,19 @@ export const CalculatorManagerPage: React.FC = () => {
                   value={editingPackaging.name}
                   onChange={(e) => setEditingPackaging({ ...editingPackaging, name: e.target.value })}
                 />
+              </div>
+              <div>
+                <label className="font-semibold block mb-1">Type (Configure)</label>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={editingPackaging.type}
+                  onChange={(e) => setEditingPackaging({ ...editingPackaging, type: e.target.value })}
+                >
+                  <option value="container">Container</option>
+                  <option value="label">Label</option>
+                  <option value="brochure">Brochure</option>
+                  <option value="outer_box">Outer Box</option>
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

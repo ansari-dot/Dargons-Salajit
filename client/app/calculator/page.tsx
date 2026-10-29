@@ -613,28 +613,22 @@ export default function CalculatorPage() {
                 </div>
               </div>
 
-              {/* Product Selection Cards */}
-              <div className="cost-calc-product-cards">
-                {products.map((p) => {
-                  const isActive = p.id === productId;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setProductId(p.id)}
-                      className={`cost-calc-prod-btn ${isActive ? 'cost-calc-prod-btn--active' : ''}`}
-                    >
-                      <div className="cost-calc-prod-btn__name">
-                        <span>{p.name}</span>
-                        {isActive && <span style={{ color: '#636830' }}>✓</span>}
-                      </div>
-                      <span className="cost-calc-prod-btn__moq">
-                        MOQ: {p.id === 1 ? '1kg (1,000g)' : (p.id === 3 ? '10,000 capsules' : (p.id === 4 ? '500 blisters' : '30ml bottle'))}
-                      </span>
-                      <p className="cost-calc-prod-btn__desc">{p.description}</p>
-                    </button>
-                  );
-                })}
+              {/* Product Selection Dropdown */}
+              <div className="cost-calc-field">
+                <label className="cost-calc-field__label">Product Line</label>
+                <div className="cost-calc-field__control cost-calc-field__control--select">
+                  <select
+                    className="cost-calc-field__input cost-calc-field__select"
+                    value={String(productId)}
+                    onChange={(e) => setProductId(Number(e.target.value))}
+                  >
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} &mdash; MOQ: {p.id === 1 ? '1kg (1,000g)' : (p.id === 3 ? '10,000 capsules' : (p.id === 4 ? '500 blisters' : '30ml bottle'))}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Configuration Inputs */}
@@ -662,35 +656,21 @@ export default function CalculatorPage() {
                 {/* Product 1: Resin Fill Size */}
                 {productId === 1 && (
                   <div className="cost-calc-field">
-                    <label className="cost-calc-field__label" htmlFor="cc-resin-fill">
+                    <span className="cost-calc-field__label" id="cc-resin-fill-label">
                       Fill Size per Jar
-                    </label>
+                    </span>
                     <div className="cost-calc-field__control cost-calc-field__control--select">
                       <select
-                        id="cc-resin-fill"
-                        className="cost-calc-field__select"
+                        className="cost-calc-field__input cost-calc-field__select"
                         value={fillSize}
                         onChange={(e) => setFillSize(e.target.value)}
                       >
                         {currentFills.map((opt) => (
-                          <option key={opt.id} value={opt.numeric_value}>
+                          <option key={opt.id} value={String(opt.numeric_value)}>
                             {opt.label} ({opt.numeric_value}g jar)
                           </option>
                         ))}
                       </select>
-                    </div>
-                    {/* Quick Preset Pills */}
-                    <div className="cost-calc-presets">
-                      {currentFills.map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          className={`cost-calc-preset-pill ${String(opt.numeric_value) === fillSize ? 'cost-calc-preset-pill--active' : ''}`}
-                          onClick={() => setFillSize(String(opt.numeric_value))}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
                     </div>
                   </div>
                 )}
@@ -712,13 +692,12 @@ export default function CalculatorPage() {
                 {/* Product 3: Capsules Strength */}
                 {productId === 3 && (
                   <div className="cost-calc-field">
-                    <label className="cost-calc-field__label" htmlFor="cc-cap-str">
+                    <span className="cost-calc-field__label" id="cc-cap-str-label">
                       Capsule Strength
-                    </label>
+                    </span>
                     <div className="cost-calc-field__control cost-calc-field__control--select">
                       <select
-                        id="cc-cap-str"
-                        className="cost-calc-field__select"
+                        className="cost-calc-field__input cost-calc-field__select"
                         value={strength}
                         onChange={(e) => setStrength(e.target.value)}
                       >
@@ -749,18 +728,19 @@ export default function CalculatorPage() {
                       />
                       <span className="cost-calc-field__suffix">capsules</span>
                     </div>
-                    {/* Quick presets 30, 60, 90 */}
-                    <div className="cost-calc-presets">
-                      {['30', '60', '90'].map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          className={`cost-calc-preset-pill ${bottleSize === preset ? 'cost-calc-preset-pill--active' : ''}`}
-                          onClick={() => setBottleSize(preset)}
-                        >
-                          {preset} caps
-                        </button>
-                      ))}
+                    {/* Bottle Size presets */}
+                    <div className="cost-calc-field__control cost-calc-field__control--select">
+                      <select
+                        className="cost-calc-field__input cost-calc-field__select"
+                        value={bottleSize}
+                        onChange={(e) => setBottleSize(e.target.value)}
+                      >
+                        {['30', '60', '90'].map((preset) => (
+                          <option key={preset} value={preset}>
+                            {preset} capsules per bottle
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 )}
@@ -833,41 +813,33 @@ export default function CalculatorPage() {
 
               {/* Alternative Choice Groups */}
               {Object.entries(alternativeGroups).map(([groupName, options]) => (
-                <div key={groupName} className="cost-calc-group-block">
-                  <div className="cost-calc-group-title">
-                    <span>
+                <div key={groupName} className="cost-calc-field">
+                  <label className="cost-calc-field__label">
                       {groupName === 'outer_packaging'
                         ? 'Select External Packaging (Choose exactly ONE):'
                         : groupName === 'spoon'
                         ? 'Select Spoon Option (Choose exactly ONE):'
                         : `Select ${groupName}:`}
-                    </span>
-                  </div>
-                  <div className="cost-calc-group-options">
-                    {options.map((opt) => {
-                      const isSelected = selectedAlternatives[groupName] === opt.packaging_id;
-                      return (
-                        <button
-                          key={opt.packaging_id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedAlternatives((prev) => ({
-                              ...prev,
-                              [groupName]: opt.packaging_id,
-                            }));
-                          }}
-                          className={`cost-calc-choice-card ${isSelected ? 'cost-calc-choice-card--active' : ''}`}
-                        >
-                          <div className="cost-calc-choice-card__name">
-                            <span>{opt.packaging_name}</span>
-                            {isSelected && <span style={{ color: '#636830' }}>✓</span>}
-                          </div>
-                          <span className="cost-calc-choice-card__meta">
-                            MOQ: {opt.moq} pcs {opt.unit_price ? `• Rs. ${opt.unit_price}` : '• Tiered pricing'}
-                          </span>
-                        </button>
-                      );
-                    })}
+                    </label>
+                  <div className="cost-calc-field__control cost-calc-field__control--select">
+                    <select
+                      className="cost-calc-field__input cost-calc-field__select"
+                      value={String(selectedAlternatives[groupName] || '')}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedAlternatives((prev) => ({
+                          ...prev,
+                          [groupName]: val ? Number(val) : null,
+                        }));
+                      }}
+                    >
+                      <option value="">None selected</option>
+                      {options.map((opt) => (
+                        <option key={opt.packaging_id} value={opt.packaging_id}>
+                          {opt.packaging_name} &mdash; MOQ: {opt.moq} pcs {opt.unit_price ? `• Rs. ${opt.unit_price}` : '• Tiered pricing'}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               ))}

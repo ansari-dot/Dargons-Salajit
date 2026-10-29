@@ -1,77 +1,124 @@
 import { api } from './api';
-import { statsData, salesOverviewData, orderStatusData, topLocationsData, recentActivityData, quickActionsData } from '../data/dashboard.data';
-import { StatItem, SalesDataPoint, OrderStatusItem, TopLocation, RecentActivityItem, QuickActionItem } from '../types';
+import { quickActionsData } from '../data/dashboard.data';
+import {
+  StatItem,
+  SalesDataPoint,
+  OrderStatusItem,
+  TopLocation,
+  RecentActivityItem,
+  QuickActionItem,
+} from '../types';
+
+const getDashboardData = async () => {
+  const response = await api.get('/dashboard/stats');
+  const data = response.data?.data;
+  if (!data) {
+    throw new Error('The dashboard API returned an empty response.');
+  }
+  return data;
+};
+
+const statStyles: Record<StatItem['iconName'], { accentColor: string; bgLight: string }> = {
+  orders: { accentColor: 'text-emerald-600', bgLight: 'bg-emerald-50' },
+  revenue: { accentColor: 'text-sky-600', bgLight: 'bg-sky-50' },
+  customers: { accentColor: 'text-indigo-600', bgLight: 'bg-indigo-50' },
+  products: { accentColor: 'text-amber-600', bgLight: 'bg-amber-50' },
+};
+
+const getStatIcon = (title: string): StatItem['iconName'] => {
+  const normalizedTitle = title.toLowerCase();
+  if (normalizedTitle.includes('revenue')) return 'revenue';
+  if (normalizedTitle.includes('customer')) return 'customers';
+  if (normalizedTitle.includes('product') || normalizedTitle.includes('stock')) return 'products';
+  return 'orders';
+};
 
 export const dashboardApi = {
   getStats: async (): Promise<StatItem[]> => {
-    try {
-      const response = await api.get('/dashboard/stats');
-      if (response.data?.data?.stats) {
-        return response.data.data.stats;
-      }
-      return statsData;
-    } catch (e) {
-      console.warn('Using fallback stats:', e);
-      return statsData;
+    const data = await getDashboardData();
+    if (!Array.isArray(data.stats)) {
+      throw new Error('The dashboard API did not return statistics.');
     }
+
+    return data.stats.map((stat: Record<string, unknown>) => {
+      const title = String(stat.title || 'Store statistic');
+      const iconName = getStatIcon(title);
+      return {
+        id: String(stat.id || title),
+        title,
+        value: String(stat.value ?? '0'),
+        change: String(stat.change ?? '0%'),
+        isPositive: stat.changeType !== 'negative',
+        comparisonText: String(stat.timeframe || ''),
+        iconName,
+        ...statStyles[iconName],
+      };
+    });
   },
 
-  getSalesOverview: async (range: string = '7d'): Promise<SalesDataPoint[]> => {
-    try {
-      const response = await api.get('/dashboard/stats');
-      if (response.data?.data?.salesData) {
-        return response.data.data.salesData;
-      }
-      return salesOverviewData;
-    } catch (e) {
-      return salesOverviewData;
+  getSalesOverview: async (_range: string = '7d'): Promise<SalesDataPoint[]> => {
+    const data = await getDashboardData();
+    if (!Array.isArray(data.salesData)) {
+      throw new Error('The dashboard API did not return sales data.');
     }
+    return data.salesData.map((point: Record<string, unknown>) => ({
+      date: String(point.date || ''),
+      displayDate: String(point.date || ''),
+      revenue: Number(point.sales ?? point.revenue ?? 0),
+    }));
   },
 
   getOrderStatuses: async (): Promise<OrderStatusItem[]> => {
-    try {
-      const response = await api.get('/dashboard/stats');
-      if (response.data?.data?.orderStatuses) {
-        return response.data.data.orderStatuses;
-      }
-      return orderStatusData;
-    } catch (e) {
-      return orderStatusData;
+    const data = await getDashboardData();
+    if (!Array.isArray(data.orderStatuses)) {
+      throw new Error('The dashboard API did not return order statuses.');
     }
+    return data.orderStatuses.map((item: Record<string, unknown>) => ({
+      status: String(item.status || 'Pending') as OrderStatusItem['status'],
+      count: Number(item.count || 0),
+      percentage: Number(item.percentage || 0),
+      color: String(item.color || '#94a3b8'),
+    }));
   },
 
   getTopLocations: async (): Promise<TopLocation[]> => {
-    try {
-      const response = await api.get('/dashboard/stats');
-      if (response.data?.data?.topLocations) {
-        return response.data.data.topLocations;
-      }
-      return topLocationsData;
-    } catch (e) {
-      return topLocationsData;
+    const data = await getDashboardData();
+    if (!Array.isArray(data.topLocations)) {
+      throw new Error('The dashboard API did not return location data.');
     }
+    const locations = data.topLocations as Array<Record<string, unknown>>;
+    const totalOrders = locations.reduce((total, location) => total + Number(location.ordersCount || 0), 0);
+    const colors = ['#10B981', '#06B6D4', '#6366F1', '#F59E0B', '#94A3B8'];
+
+    return locations.map((location, index) => {
+      const name = String(location.name || 'Unknown');
+      const ordersCount = Number(location.ordersCount || 0);
+      return {
+        id: name,
+        country: name,
+        percentage: totalOrders ? Math.round((ordersCount / totalOrders) * 100) : 0,
+        color: colors[index % colors.length],
+      };
+    });
   },
 
   getRecentActivity: async (): Promise<RecentActivityItem[]> => {
-    try {
-      const response = await api.get('/dashboard/stats');
-      if (response.data?.data?.recentOrders) {
-        return response.data.data.recentOrders.map((ord: any) => ({
-          id: String(ord.id),
-          type: 'order',
-          title: `New Order ${ord.id}`,
-          description: `${ord.customer} placed an order worth ₨${Number(ord.total).toLocaleString()}`,
-          timestamp: ord.date || 'Just now',
-          status: ord.status,
-        }));
-      }
-      return recentActivityData;
-    } catch (e) {
-      return recentActivityData;
+    const data = await getDashboardData();
+    if (!Array.isArray(data.recentOrders)) {
+      throw new Error('The dashboard API did not return recent orders.');
     }
+    return data.recentOrders.map((order: Record<string, unknown>) => {
+      const customer = String(order.customer || 'Guest Customer');
+      const orderId = String(order.order_number || order.id || '');
+      return {
+        id: String(order.id || orderId),
+        type: 'order',
+        title: `New order ${orderId}`,
+        subtitle: `${customer} · ₨${Number(order.total || 0).toLocaleString()}`,
+        time: String(order.date || ''),
+      };
+    });
   },
 
-  getQuickActions: async (): Promise<QuickActionItem[]> => {
-    return Promise.resolve(quickActionsData);
-  },
+  getQuickActions: async (): Promise<QuickActionItem[]> => quickActionsData,
 };

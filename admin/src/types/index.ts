@@ -64,6 +64,7 @@ export interface Customer {
   street_address?: string;
   postal_code?: string;
   role?: string;
+  isDisposableEmail?: boolean;
 }
 
 export type StockStatus = 'In Stock' | 'Low Stock' | 'Out of Stock';

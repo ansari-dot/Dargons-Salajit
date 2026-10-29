@@ -1,21 +1,24 @@
 const AuthService = require('../services/authService');
 const { sendSuccess } = require('../utils/responseHandler');
 const { setTokenCookies, clearTokenCookies } = require('../utils/jwtHelper');
-const checkDisposableEmail = require('../utils/checkDisposableEmail.js')
+const { isDisposableEmail } = require('../utils/disposableEmail');
 // Register Controller
 const register = async (req, res, next) => {
   try {
-    const { requiresVerification, email } = await AuthService.register(req.body);
+    const { email } = req.body;
 
-    if(checkDisposableEmail(email)){
+    // Block disposable/temporary email addresses BEFORE registration
+    if (isDisposableEmail(email)) {
       return res.status(400).json({
-        success:false,
-        message:"Temporary email addresses are not allowed. Please use your personal email.",
-      })
+        success: false,
+        message: 'Temporary email addresses are not allowed. Please use your personal email.',
+      });
     }
+
+    const { requiresVerification, email: registeredEmail } = await AuthService.register(req.body);
     return sendSuccess(
       res,
-      { requiresVerification, email },
+      { requiresVerification, email: registeredEmail },
       'Registration successful. Please verify your email with the 6-digit code we sent you.',
       201
     );

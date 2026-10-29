@@ -10,7 +10,7 @@ import AuthLayout from '@/components/auth/AuthLayout';
 import { useToast } from '@/components/ui/Toast';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-const CODE_LENGTH = 10;
+const CODE_LENGTH = 6;
 const RESEND_COOLDOWN = 60;
 
 export default function VerifyEmailPage() {

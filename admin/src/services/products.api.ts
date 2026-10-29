@@ -1,3 +1,4 @@
+import { api } from './api';
 import { productApiService, ProductItem } from './productApiService';
 import { TopProduct, InventoryItem, StockStatus } from '../types';
 
@@ -12,19 +13,19 @@ export const productsApi = {
   },
 
   getTopSelling: async (): Promise<TopProduct[]> => {
-    try {
-      const items: ProductItem[] = await productApiService.getAll();
-      return items.map((p) => ({
-        id: String(p.id),
-        name: p.name,
-        sold: Math.floor(25 + Math.random() * 75),
-        revenue: (p.price || 2500) * 45,
-        image: p.main_image || '/shilajit-surp.png',
-        category: p.category_name || 'Shilajit',
-      }));
-    } catch {
-      return [];
+    const response = await api.get('/dashboard/stats');
+    const items = response.data?.data?.topProducts;
+    if (!Array.isArray(items)) {
+      throw new Error('The dashboard API did not return top-selling products.');
     }
+    return items.map((product: Record<string, unknown>) => ({
+      id: String(product.id),
+      name: String(product.name || 'Product'),
+      sold: Number(product.sold || 0),
+      revenue: Number(product.revenue || 0),
+      image: String(product.image || '/shilajit-surp.png'),
+      category: String(product.category || 'General'),
+    }));
   },
 
   getStockOverview: async (): Promise<InventoryItem[]> => {

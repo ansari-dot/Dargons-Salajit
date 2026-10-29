@@ -88,15 +88,8 @@ const getDashboardStats = async (req, res) => {
       joinedDate: cust.joined_date ? new Date(cust.joined_date).toLocaleDateString() : 'Recently'
     }));
 
-    // 6. Format Top Locations (Fallbacks if no orders yet)
-    const defaultLocations = [
-      { name: 'Islamabad', ordersCount: 0, totalSales: 0 },
-      { name: 'Lahore', ordersCount: 0, totalSales: 0 },
-      { name: 'Karachi', ordersCount: 0, totalSales: 0 },
-      { name: 'Rawalpindi', ordersCount: 0, totalSales: 0 },
-      { name: 'Peshawar', ordersCount: 0, totalSales: 0 }
-    ];
-    const topLocations = rawMetrics.topLocations.length > 0 ? rawMetrics.topLocations : defaultLocations;
+    // 6. Format Top Locations
+    const topLocations = rawMetrics.topLocations;
 
     // 7. Format Stock Overview
     const stockItems = rawMetrics.stockOverview.map(st => ({
@@ -117,6 +110,14 @@ const getDashboardStats = async (req, res) => {
       recentOrders,
       recentCustomers,
       topLocations,
+      topProducts: rawMetrics.topProducts.map(product => ({
+        id: String(product.id),
+        name: product.name,
+        sold: Number(product.sold),
+        revenue: Number(product.revenue),
+        image: product.main_image || '',
+        category: product.category || 'General'
+      })),
       stockItems,
       rawMetrics
     };

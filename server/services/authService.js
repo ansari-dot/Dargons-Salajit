@@ -10,6 +10,7 @@ const generateCode = require('../utils/generateCode.js')
 const sendEmail = require('../utils/stmp.js')
 const EMAIL_SUBJECTS = require('../utils/EmailSubject');
 const { verificationEmailHtml, passwordResetEmailHtml } = require('../utils/emailTemplates');
+const { isDisposableEmail } = require('../utils/disposableEmail');
 
 const CODE_TTL_MINUTES = 10;
 const RESET_TOKEN_TTL_MINUTES = 30;
@@ -24,6 +25,13 @@ const hashCode = (code) => {
 class AuthService {
   // Register a new user (email verification required — does NOT log in yet)
   static async register(userData) {
+    // Block disposable/temporary email addresses
+    if (isDisposableEmail(userData.email)) {
+      const error = new Error('Temporary email addresses are not allowed. Please use your personal email.');
+      error.statusCode = 400;
+      throw error;
+    }
+
     // Check if email already exists
     const existingUser = await UserModel.findByEmail(userData.email);
     if (existingUser) {

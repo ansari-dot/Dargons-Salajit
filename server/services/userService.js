@@ -1,4 +1,5 @@
 const UserModel = require('../models/userModel');
+const { isDisposableEmail } = require('../utils/disposableEmail');
 
 class UserService {
   // Fetch all users
@@ -19,6 +20,13 @@ class UserService {
 
   // Register or create user from checkout
   static async createUser(userData) {
+    // Block disposable/temporary email addresses
+    if (isDisposableEmail(userData.email)) {
+      const error = new Error('Temporary email addresses are not allowed. Please use your personal email.');
+      error.statusCode = 400;
+      throw error;
+    }
+
     // Check if user email already exists
     const existingUser = await UserModel.findByEmail(userData.email);
     if (existingUser) {
