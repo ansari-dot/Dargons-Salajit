@@ -5,6 +5,17 @@
  */
 const db = require('../config/db');
 
+const parseWeightRange = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const weights = String(value).match(/\d+(?:\.\d+)?/g)?.map(Number) || [];
+  if (weights.length === 0) return null;
+
+  return {
+    min: Math.min(weights[0], weights[1] ?? weights[0]),
+    max: Math.max(weights[0], weights[1] ?? weights[0])
+  };
+};
+
 class PricingEngine {
   /**
    * Look up tier pricing from calculator_pricing_tiers.
@@ -58,7 +69,8 @@ class PricingEngine {
             maxQuantity: null,
             isOpenEnded: true,
             tierId: tier.id,
-            pricingVersion: tier.pricing_version
+            pricingVersion: tier.pricing_version,
+            nextCheaperTier: this.findNextCheaperTier(tiers, qty, Number(tier.rate))
           };
         }
       } else if (max !== null) {
@@ -70,7 +82,8 @@ class PricingEngine {
             maxQuantity: max,
             isOpenEnded: false,
             tierId: tier.id,
-            pricingVersion: tier.pricing_version
+            pricingVersion: tier.pricing_version,
+            nextCheaperTier: this.findNextCheaperTier(tiers, qty, Number(tier.rate))
           };
         }
       }
@@ -81,6 +94,19 @@ class PricingEngine {
       available: false,
       message: 'Pricing is currently unavailable for this quantity. Please contact us for a custom quotation.'
     };
+  }
+
+  static findNextCheaperTier(tiers, quantity, currentRate) {
+    const nextTier = tiers
+      .filter((tier) =>
+        Number(tier.min_quantity) > quantity &&
+        Number(tier.rate) < currentRate
+      )
+      .sort((a, b) => Number(a.min_quantity) - Number(b.min_quantity))[0];
+
+    return nextTier
+      ? { minQuantity: Number(nextTier.min_quantity), rate: Number(nextTier.rate) }
+      : null;
   }
 
   /**
@@ -101,7 +127,7 @@ class PricingEngine {
 
     const [rules] = await db.query(`
       SELECT r.*, p.name AS packaging_name, p.code AS packaging_code, p.type AS packaging_type,
-             p.moq, p.unit_price, p.dieline_url, p.capacity
+             p.moq, p.unit_price, p.dieline_url, p.capacity, p.image_url
       FROM calculator_product_packaging_rules r
       INNER JOIN calculator_packaging_items p ON p.id = r.packaging_id
       WHERE r.is_active = 1 AND p.is_active = 1
@@ -275,7 +301,7 @@ class PricingEngine {
     const [rules] = await db.query(`
       SELECT r.*, p.id AS pkg_id, p.name AS pkg_name, p.code AS pkg_code, p.type AS pkg_type,
              p.moq, p.unit_price, p.material_cost, p.printing_cost, p.setup_cost, p.other_cost,
-             p.dieline_url, p.capacity
+             p.dieline_url, p.capacity, p.estimated_weight, p.image_url
       FROM calculator_product_packaging_rules r
       INNER JOIN calculator_packaging_items p ON p.id = r.packaging_id
       WHERE r.product_id = ? AND r.is_active = 1 AND p.is_active = 1
@@ -334,6 +360,13 @@ class PricingEngine {
     const packagingBreakdown = [];
     let totalPackagingCost = 0;
     let totalPurchasedPackagingUnits = 0;
+    let packagingPricingIssue = null;
+    let totalPackagingWeightMinG = 0;
+    let totalPackagingWeightMaxG = 0;
+    let remainingPackagingWeightMinG = 0;
+    let remainingPackagingWeightMaxG = 0;
+    let hasTotalPackagingWeight = false;
+    let hasRemainingPackagingWeight = false;
 
     for (const item of finalSelectedPackaging) {
       // Calculate Suggested Quantity based on suggested_qty_rule
@@ -349,22 +382,52 @@ class PricingEngine {
       }
 
       // Purchased Quantity (Rule: customer may purchase more packaging than immediately required)
-      const enteredPurchased = packagingPurchases[item.pkg_id];
-      const purchasedQty = enteredPurchased !== undefined && Number(enteredPurchased) > 0
-        ? Math.floor(Number(enteredPurchased))
-        : suggestedQty;
-
-      // Validate MOQ (Rule 9 & Rule 28: Unspecified packaging MOQ defaults to 200 pieces; database specific takes priority)
-      const itemMOQ = item.moq || 200;
-      if (purchasedQty < itemMOQ) {
-        throw new Error(`Purchased quantity for "${item.pkg_name}" is ${purchasedQty}, which is below the minimum order quantity (MOQ: ${itemMOQ}).`);
-      }
-
-      // Used Quantity = Suggested Quantity
+      const itemMOQ = Math.max(1, Math.ceil(Number(item.moq) || 200));
+      const hasEnteredPurchase = Object.prototype.hasOwnProperty.call(packagingPurchases, item.pkg_id);
+      const enteredPurchased = Number(packagingPurchases[item.pkg_id]);
+      const purchasedQty = hasEnteredPurchase && Number.isFinite(enteredPurchased) && enteredPurchased > 0
+        ? Math.floor(enteredPurchased)
+        : Math.max(suggestedQty, itemMOQ);
       const usedQty = suggestedQty;
+      const remainingQty = Math.max(0, purchasedQty - usedQty);
+      const shortBy = Math.max(0, usedQty - purchasedQty);
+      const weightRange = parseWeightRange(item.estimated_weight);
+      const weightExcluded = /(jar|label|insert)/i.test(`${item.pkg_name} ${item.pkg_type}`);
+      const basePackagingRow = {
+        packagingId: item.pkg_id,
+        name: item.pkg_name,
+        code: item.pkg_code,
+        type: item.pkg_type,
+        alternativeGroup: item.alternative_group || null,
+        imageUrl: item.image_url || null,
+        moq: itemMOQ,
+        suggestedQuantity: suggestedQty,
+        requiredQuantity: usedQty,
+        purchasedQuantity: purchasedQty,
+        usedQuantity: usedQty,
+        remainingQuantity: remainingQty,
+        shortBy,
+        minimumOrderNotice: suggestedQty < itemMOQ && purchasedQty === itemMOQ,
+        weightMinG: weightRange?.min ?? null,
+        weightMaxG: weightRange?.max ?? null,
+        weightExcludedFromEstimate: weightExcluded,
+        dielineUrl: item.dieline_url || null,
+        capacity: item.capacity || null
+      };
 
-      // Formula from Section 3: Remaining = Purchased - Used
-      const remainingQty = purchasedQty - usedQty;
+      if (purchasedQty < itemMOQ) {
+        packagingPricingIssue = `Minimum order for ${item.pkg_name} is ${itemMOQ} pcs. You selected ${purchasedQty} pcs; request a quotation for this quantity.`;
+        packagingBreakdown.push({
+          ...basePackagingRow,
+          unitPrice: null,
+          totalCost: null,
+          usedCost: null,
+          remainingCost: null,
+          pricingTier: null,
+          nextCheaperTier: null
+        });
+        continue;
+      }
 
       // Packaging Pricing: Fixed Unit Price OR Tiered Pricing
       let unitPrice = 0;
@@ -376,12 +439,17 @@ class PricingEngine {
         // Tiered pricing lookup for packaging
         const tierLookup = await this.findTierPrice('packaging', item.pkg_id, purchasedQty);
         if (!tierLookup.available) {
-          return {
-            pricingAvailable: false,
-            message: `Pricing is currently unavailable for ${item.pkg_name} at quantity ${purchasedQty}. Please contact us for a custom quotation.`,
-            failedItem: item.pkg_name,
-            purchasedQty
-          };
+          packagingPricingIssue = `Pricing is currently unavailable for ${item.pkg_name} at ${purchasedQty} pcs. Please request a custom quotation.`;
+          packagingBreakdown.push({
+            ...basePackagingRow,
+            unitPrice: null,
+            totalCost: null,
+            usedCost: null,
+            remainingCost: null,
+            pricingTier: null,
+            nextCheaperTier: null
+          });
+          continue;
         }
         unitPrice = tierLookup.rate;
         pricingDetail = tierLookup;
@@ -389,26 +457,43 @@ class PricingEngine {
 
       // Packaging is charged according to Purchased Quantity, not used quantity (Rule 4)
       const itemCost = unitPrice * purchasedQty;
+      const usedCost = unitPrice * usedQty;
+      const remainingCost = unitPrice * remainingQty;
       totalPackagingCost += itemCost;
       totalPurchasedPackagingUnits += purchasedQty;
 
       packagingBreakdown.push({
-        packagingId: item.pkg_id,
-        name: item.pkg_name,
-        code: item.pkg_code,
-        type: item.pkg_type,
-        alternativeGroup: item.alternative_group || null,
-        moq: itemMOQ,
-        suggestedQuantity: suggestedQty,
-        purchasedQuantity: purchasedQty,
-        usedQuantity: usedQty,
-        remainingQuantity: remainingQty,
+        ...basePackagingRow,
         unitPrice: unitPrice,
         totalCost: itemCost,
-        dielineUrl: item.dieline_url || null,
-        capacity: item.capacity || null,
-        pricingTier: pricingDetail
+        usedCost,
+        remainingCost,
+        pricingTier: pricingDetail,
+        nextCheaperTier: pricingDetail?.nextCheaperTier || null
       });
+
+      if (weightRange && !weightExcluded) {
+        totalPackagingWeightMinG += purchasedQty * weightRange.min;
+        totalPackagingWeightMaxG += purchasedQty * weightRange.max;
+        remainingPackagingWeightMinG += remainingQty * weightRange.min;
+        remainingPackagingWeightMaxG += remainingQty * weightRange.max;
+        hasTotalPackagingWeight = true;
+        if (remainingQty > 0) hasRemainingPackagingWeight = true;
+      }
+    }
+
+    if (packagingPricingIssue) {
+      return {
+        pricingAvailable: false,
+        message: packagingPricingIssue,
+        product: {
+          id: product.id,
+          name: product.name,
+          finishedQuantity: qty
+        },
+        packagingBreakdown,
+        summary: null
+      };
     }
 
     // 6. Master Formula Breakdown
@@ -459,6 +544,8 @@ class PricingEngine {
       summary: {
         filledProductCost: productCost,
         packagingInventoryCost: totalPackagingCost,
+        packagingUsedCost: packagingBreakdown.reduce((sum, item) => sum + item.usedCost, 0),
+        packagingRemainingCost: packagingBreakdown.reduce((sum, item) => sum + item.remainingCost, 0),
         printingCost: printing,
         setupCost: setup,
         otherCosts: other,
@@ -467,7 +554,11 @@ class PricingEngine {
         estimatedProjectCost: estimatedProjectCost,
         filledProductCostPerUnit: filledProductCostPerUnit,
         packagingCostPerPurchasedUnit: packagingCostPerPurchasedUnit,
-        totalPurchasedPackagingUnits
+        totalPurchasedPackagingUnits,
+        totalPackagingWeightMinG: hasTotalPackagingWeight ? totalPackagingWeightMinG : null,
+        totalPackagingWeightMaxG: hasTotalPackagingWeight ? totalPackagingWeightMaxG : null,
+        remainingPackagingWeightMinG: hasRemainingPackagingWeight ? remainingPackagingWeightMinG : null,
+        remainingPackagingWeightMaxG: hasRemainingPackagingWeight ? remainingPackagingWeightMaxG : null
       },
       pricingSnapshot: {
         calculatedAt: new Date().toISOString(),
@@ -476,7 +567,9 @@ class PricingEngine {
         packagingItems: packagingBreakdown.map((p) => ({
           id: p.packagingId,
           name: p.name,
+          requiredQty: p.requiredQuantity,
           purchasedQty: p.purchasedQuantity,
+          remainingQty: p.remainingQuantity,
           unitPrice: p.unitPrice,
           totalCost: p.totalCost
         }))
@@ -577,4 +670,3 @@ class PricingEngine {
 }
 
 module.exports = PricingEngine;
-

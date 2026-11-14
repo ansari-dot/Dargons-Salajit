@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useAppSelector } from '@/lib/redux/hooks';
 import { formatAmount } from '@/lib/utils/currency';
 import './calculator.css';
@@ -16,7 +15,15 @@ interface ProductItem {
   moq: number;
   min_product_cost: number;
   description: string;
+  image_url?: string | null;
 }
+
+const productImageById: Record<number, string> = {
+  1: '/popular_gold_jar.png',
+  2: '/popular_drops.png',
+  3: '/popular_capsules.png',
+  4: '/popular_capsules.png',
+};
 
 interface ProductOptionItem {
   id: number;
@@ -40,6 +47,7 @@ interface PackagingRule {
   packaging_name: string;
   packaging_code: string;
   packaging_type: string;
+  image_url?: string | null;
   moq: number;
   unit_price: number | null;
   dieline_url: string | null;
@@ -52,16 +60,53 @@ interface PackagingBreakdownItem {
   code: string;
   type: string;
   alternativeGroup: string | null;
+  imageUrl?: string | null;
   moq: number;
   suggestedQuantity: number;
+  requiredQuantity: number;
   purchasedQuantity: number;
   usedQuantity: number;
   remainingQuantity: number;
-  unitPrice: number;
-  totalCost: number;
+  shortBy: number;
+  minimumOrderNotice?: boolean;
+  weightMinG: number | null;
+  weightMaxG: number | null;
+  weightExcludedFromEstimate: boolean;
+  unitPrice: number | null;
+  totalCost: number | null;
+  usedCost: number | null;
+  remainingCost: number | null;
+  nextCheaperTier: { minQuantity: number; rate: number } | null;
   dielineUrl: string | null;
   capacity: string | null;
 }
+
+const PackagingThumbnail = ({
+  src,
+  alt,
+  isSpoon = false,
+}: {
+  src?: string | null;
+  alt: string;
+  isSpoon?: boolean;
+}) => (
+  <span className="cost-calc-packaging-thumb">
+    {src ? (
+      <img src={src} alt={alt} />
+    ) : isSpoon ? (
+      <svg viewBox="0 0 72 30" fill="none" role="img" aria-label={alt}>
+        <ellipse cx="12" cy="15" rx="9" ry="5.5" transform="rotate(-18 12 15)" stroke="currentColor" strokeWidth="2" />
+        <path d="M19 13.5L65 3.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        <path d="M19 16.5L65 6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    ) : (
+      <svg viewBox="0 0 32 32" fill="none" role="img" aria-label={alt}>
+        <path d="M5 10.5 16 5l11 5.5v12L16 28 5 22.5v-12Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="m5.5 10.5 10.5 5 10.5-5M16 16v11" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      </svg>
+    )}
+  </span>
+);
 
 interface BucketItem {
   id: string;
@@ -114,7 +159,7 @@ export default function CalculatorPage() {
   // ─────────────────────────────────────────────
   // Section 2: Packaging Selection & Custom Purchases
   // ─────────────────────────────────────────────
-  const [selectedAlternatives, setSelectedAlternatives] = useState<Record<string, number>>({});
+  const [selectedAlternatives, setSelectedAlternatives] = useState<Record<string, number | null>>({});
   const [purchasedQuantities, setPurchasedQuantities] = useState<Record<number, string>>({});
 
   // ─────────────────────────────────────────────
@@ -130,6 +175,7 @@ export default function CalculatorPage() {
   // Calculation Feedback
   // ─────────────────────────────────────────────
   const [result, setResult] = useState<any>(null);
+  const [unavailablePackagingBreakdown, setUnavailablePackagingBreakdown] = useState<PackagingBreakdownItem[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [calcError, setCalcError] = useState<string>('');
   const [pricingUnavailableMsg, setPricingUnavailableMsg] = useState<string>('');
@@ -232,6 +278,8 @@ export default function CalculatorPage() {
     setPurchasedQuantities({});
     setPricingUnavailableMsg('');
     setCalcError('');
+    setResult(null);
+    setUnavailablePackagingBreakdown([]);
   }, [productId, rules]);
 
   const currentProduct = products.find((p) => p.id === productId) || products[0];
@@ -244,6 +292,8 @@ export default function CalculatorPage() {
   );
 
   const activeRules = rules.filter((r) => r.product_id === productId);
+  const packagingTableRows: PackagingBreakdownItem[] =
+    result?.packagingBreakdown || unavailablePackagingBreakdown;
 
   // Group alternative packaging choices
   const alternativeGroups: Record<string, PackagingRule[]> = {};
@@ -255,6 +305,12 @@ export default function CalculatorPage() {
       alternativeGroups[r.alternative_group].push(r);
     }
   }
+  const spoonGroup = Object.entries(alternativeGroups).find(([name]) =>
+    name.toLowerCase().includes('spoon')
+  );
+  const selectedSpoon = spoonGroup?.[1].find(
+    (option) => option.packaging_id === Number(selectedAlternatives[spoonGroup[0]])
+  );
 
   // Determine active packaging item IDs to submit to backend
   const getSelectedPackagingIds = (): number[] => {
@@ -328,9 +384,11 @@ export default function CalculatorPage() {
       if (res.ok && json.success) {
         if (json.data.pricingAvailable) {
           setResult(json.data);
+          setUnavailablePackagingBreakdown([]);
           setPricingUnavailableMsg('');
         } else {
           setResult(null);
+          setUnavailablePackagingBreakdown(json.data.packagingBreakdown || []);
           setPricingUnavailableMsg(
             json.data.message ||
             'Pricing is currently unavailable for this quantity. Please contact us for a custom quotation.'
@@ -338,11 +396,13 @@ export default function CalculatorPage() {
         }
       } else {
         setResult(null);
+        setUnavailablePackagingBreakdown([]);
         setCalcError(json.message || 'Validation error calculating costs.');
       }
     } catch {
       if (seq !== requestSeq.current) return;
       setResult(null);
+      setUnavailablePackagingBreakdown([]);
       setCalcError('Unable to connect to the server.');
     } finally {
       if (seq === requestSeq.current) {
@@ -353,22 +413,38 @@ export default function CalculatorPage() {
 
   // Debounced auto-calculation
   useEffect(() => {
+    if (isLoadingConfig) return;
+
+    const scheduledRequest = ++requestSeq.current;
     const qty = toNumber(finishedQty);
     if (!productId || qty <= 0) {
       requestSeq.current++;
       setResult(null);
+      setUnavailablePackagingBreakdown([]);
+      setPricingUnavailableMsg('');
+      setCalcError('');
       setIsCalculating(false);
       return;
     }
 
     setIsCalculating(true);
+    setResult(null);
+    setUnavailablePackagingBreakdown([]);
+    setPricingUnavailableMsg('');
+    setCalcError('');
     const timer = setTimeout(() => {
-      handleCalculate();
+      if (requestSeq.current === scheduledRequest) {
+        handleCalculate();
+      }
     }, 350);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      requestSeq.current++;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    isLoadingConfig,
     productId,
     fillSize,
     strength,
@@ -530,22 +606,12 @@ export default function CalculatorPage() {
           customerEmail: quoteCustomerEmail,
           customerPhone: quoteCustomerPhone,
           productName: currentProduct?.name,
-          productCost: result?.summary?.filledProductCost || 0,
-          packagingCost: result?.summary?.packagingInventoryCost || 0,
-          printingCost: toNumber(printingCost),
-          setupCost: toNumber(setupCost),
-          otherCosts: toNumber(otherCosts),
-          shipping: toNumber(shipping),
-          discount: toNumber(discounts),
-          estimatedProjectCost: result?.summary?.estimatedProjectCost || 0,
           configurationSnapshot: {
-            product: currentProduct?.name,
             fillSize,
             strength,
             bottleSize,
             finishedQuantity: finishedQty,
             notes: quoteNotes,
-            packagingBreakdown: result?.packagingBreakdown || [],
           },
         }),
       });
@@ -568,27 +634,20 @@ export default function CalculatorPage() {
 
   return (
     <div className="cost-calc-page">
-      {/* Top Breadcrumb */}
-      <div className="shop-top-breadcrumb">
-        <div className="shop-top-breadcrumb__container">
-          <Link href="/">Home</Link>
-          <span className="sep">/</span>
-          <span className="current">Private Label Shilajit Calculator</span>
-        </div>
-      </div>
-
       {/* Hero */}
       <section className="cost-calc-hero">
         <div className="cost-calc-hero__content">
           <span className="cost-calc-hero__eyebrow">
+            <i aria-hidden="true" />
             Private Label Shilajit
           </span>
           <h1 className="cost-calc-hero__title">
-            Configuration &amp; Cost Calculator
+            Build Your Shilajit Product
           </h1>
           <p className="cost-calc-hero__desc">
-            Build your custom private label Shilajit line with database-driven pricing, complete packaging inventory tracking, and authoritative backend estimates.
+            Customize your product, choose your packaging, and get a clear production cost estimate.
           </p>
+          <span className="cost-calc-hero__bar" aria-hidden="true" />
         </div>
       </section>
 
@@ -605,34 +664,40 @@ export default function CalculatorPage() {
                 <span className="cost-calc-section__num">1</span>
                 <div>
                   <h2 className="cost-calc-section__title">
-                    Select Product Line &amp; Fill Configuration
+                    Choose Your Product
                   </h2>
                   <p className="cost-calc-section__subtitle">
-                    Select your product, fill size, and finished production quantity.
+                    Select a product line to start configuring your order.
                   </p>
                 </div>
               </div>
 
-              {/* Product Selection Dropdown */}
-              <div className="cost-calc-field">
-                <label className="cost-calc-field__label">Product Line</label>
-                <div className="cost-calc-field__control cost-calc-field__control--select">
-                  <select
-                    className="cost-calc-field__input cost-calc-field__select"
-                    value={String(productId)}
-                    onChange={(e) => setProductId(Number(e.target.value))}
+              <div className="cost-calc-product-cards" role="group" aria-label="Product line">
+                {products.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    className={`cost-calc-prod-btn${product.id === productId ? ' cost-calc-prod-btn--active' : ''}`}
+                    aria-pressed={product.id === productId}
+                    onClick={() => setProductId(product.id)}
                   >
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} &mdash; MOQ: {p.id === 1 ? '1kg (1,000g)' : (p.id === 3 ? '10,000 capsules' : (p.id === 4 ? '500 blisters' : '30ml bottle'))}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    <span className="cost-calc-prod-btn__art">
+                      <img
+                        src={product.image_url || productImageById[product.id] || '/popular_gold_jar.png'}
+                        alt=""
+                      />
+                    </span>
+                    <span className="cost-calc-prod-btn__details">
+                      <span className="cost-calc-prod-btn__name">{product.name}</span>
+                      <span className="cost-calc-prod-btn__meta">MOQ: {product.moq.toLocaleString()}</span>
+                    </span>
+                    <span className="cost-calc-radio" aria-hidden="true" />
+                  </button>
+                ))}
               </div>
 
               {/* Configuration Inputs */}
-              <div className="cost-calc-fields">
+              <div className="cost-calc-fields cost-calc-fields--configuration">
                 {/* Finished Production Quantity */}
                 <div className="cost-calc-field">
                   <label className="cost-calc-field__label" htmlFor="cc-finished-qty">
@@ -656,11 +721,12 @@ export default function CalculatorPage() {
                 {/* Product 1: Resin Fill Size */}
                 {productId === 1 && (
                   <div className="cost-calc-field">
-                    <span className="cost-calc-field__label" id="cc-resin-fill-label">
+                    <label className="cost-calc-field__label" id="cc-resin-fill-label" htmlFor="cc-resin-fill">
                       Fill Size per Jar
-                    </span>
+                    </label>
                     <div className="cost-calc-field__control cost-calc-field__control--select">
                       <select
+                        id="cc-resin-fill"
                         className="cost-calc-field__input cost-calc-field__select"
                         value={fillSize}
                         onChange={(e) => setFillSize(e.target.value)}
@@ -681,8 +747,8 @@ export default function CalculatorPage() {
                     <label className="cost-calc-field__label">
                       Primary Container &amp; Volume
                     </label>
-                    <div className="cost-calc-field__control" style={{ background: '#f8f8f6', padding: '11px 14px' }}>
-                      <span style={{ fontSize: '0.86rem', color: '#2c2c2c', fontWeight: 600 }}>
+                    <div className="cost-calc-field__control">
+                      <span className="cost-calc-field__static">
                         30ml Dropper Bottle (Standard Container)
                       </span>
                     </div>
@@ -692,11 +758,12 @@ export default function CalculatorPage() {
                 {/* Product 3: Capsules Strength */}
                 {productId === 3 && (
                   <div className="cost-calc-field">
-                    <span className="cost-calc-field__label" id="cc-cap-str-label">
+                    <label className="cost-calc-field__label" id="cc-cap-str-label" htmlFor="cc-cap-strength">
                       Capsule Strength
-                    </span>
+                    </label>
                     <div className="cost-calc-field__control cost-calc-field__control--select">
                       <select
+                        id="cc-cap-strength"
                         className="cost-calc-field__input cost-calc-field__select"
                         value={strength}
                         onChange={(e) => setStrength(e.target.value)}
@@ -797,118 +864,164 @@ export default function CalculatorPage() {
               </div>
             </div>
 
-            {/* Step 2: Compatible Packaging Selection & Inventory Quantities */}
-            <div className="cost-calc-section">
+            {/* Step 2: Compatible Packaging Selection */}
+            <div className="cost-calc-section cost-calc-section--packaging-selection">
               <div className="cost-calc-section__head">
                 <span className="cost-calc-section__num">2</span>
                 <div>
                   <h2 className="cost-calc-section__title">
-                    Packaging Selection &amp; Inventory Quantities
+                    Choose Packaging
                   </h2>
-                  <p className="cost-calc-section__subtitle">
-                    Select compatible components. Track Suggested, Purchased, Used, and Remaining quantities.
-                  </p>
                 </div>
               </div>
 
               {/* Alternative Choice Groups */}
-              {Object.entries(alternativeGroups).map(([groupName, options]) => (
-                <div key={groupName} className="cost-calc-field">
-                  <label className="cost-calc-field__label">
-                      {groupName === 'outer_packaging'
-                        ? 'Select External Packaging (Choose exactly ONE):'
-                        : groupName === 'spoon'
-                        ? 'Select Spoon Option (Choose exactly ONE):'
-                        : `Select ${groupName}:`}
-                    </label>
-                  <div className="cost-calc-field__control cost-calc-field__control--select">
-                    <select
-                      className="cost-calc-field__input cost-calc-field__select"
-                      value={String(selectedAlternatives[groupName] || '')}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSelectedAlternatives((prev) => ({
-                          ...prev,
-                          [groupName]: val ? Number(val) : null,
-                        }));
-                      }}
-                    >
-                      <option value="">None selected</option>
-                      {options.map((opt) => (
-                        <option key={opt.packaging_id} value={opt.packaging_id}>
-                          {opt.packaging_name} &mdash; MOQ: {opt.moq} pcs {opt.unit_price ? `• Rs. ${opt.unit_price}` : '• Tiered pricing'}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <div className="cost-calc-packaging-row">
+                <div className="cost-calc-packaging-choices">
+                  {Object.entries(alternativeGroups).map(([groupName, options]) => {
+                    const selectedOption = options.find(
+                      (option) => option.packaging_id === Number(selectedAlternatives[groupName])
+                    );
+                    const isSpoon = groupName.toLowerCase().includes('spoon');
+
+                    return (
+                      <div key={groupName} className="cost-calc-field">
+                        {!isSpoon && (
+                          <label className="cost-calc-field__label">
+                            {groupName === 'outer_packaging'
+                              ? 'Select External Packaging (Choose exactly ONE):'
+                              : `Select ${groupName}:`}
+                          </label>
+                        )}
+                        <div className="cost-calc-field__control cost-calc-field__control--select cost-calc-packaging-select">
+                          <PackagingThumbnail
+                            src={selectedOption?.image_url}
+                            alt={selectedOption?.packaging_name || 'Packaging item'}
+                            isSpoon={isSpoon}
+                          />
+                          <select
+                            aria-label={isSpoon ? 'Choose spoon packaging' : `Choose ${groupName}`}
+                            className="cost-calc-field__input cost-calc-field__select"
+                            value={String(selectedAlternatives[groupName] || '')}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSelectedAlternatives((prev) => ({
+                                ...prev,
+                                [groupName]: val ? Number(val) : null,
+                              }));
+                            }}
+                          >
+                            <option value="">None selected</option>
+                            {options.map((opt) => (
+                              <option key={opt.packaging_id} value={opt.packaging_id}>
+                                {opt.packaging_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+                {spoonGroup && (
+                  <div className="cost-calc-spoon-summary">
+                    <span className="cost-calc-spoon-summary__icon" aria-hidden="true">i</span>
+                    <div>
+                      <span className="cost-calc-spoon-summary__title">Selected Packaging</span>
+                      <span className="cost-calc-spoon-summary__details">
+                        {selectedSpoon
+                          ? `${selectedSpoon.moq.toLocaleString()} pcs MOQ · ${selectedSpoon.unit_price === null
+                            ? 'Tiered pricing'
+                            : `${formatAmount(selectedSpoon.unit_price, currency)} / pc`}`
+                          : 'Choose a spoon option'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Step 3: Packaging Quantity Management */}
+            <div className="cost-calc-section cost-calc-section--packaging-management">
+              <div className="cost-calc-section__head">
+                <span className="cost-calc-section__num">3</span>
+                <div>
+                  <h2 className="cost-calc-section__title">
+                    Packaging Quantity Management
+                  </h2>
+                </div>
+              </div>
 
               {/* Packaging Breakdown Table (Desktop) */}
-              {result?.packagingBreakdown && result.packagingBreakdown.length > 0 && (
+              {packagingTableRows.length > 0 && (
                 <div className="cost-calc-pkg-table-wrap">
                   <table className="cost-calc-pkg-table">
                     <thead>
                       <tr>
-                        <th>Packaging Component</th>
-                        <th>Type</th>
-                        <th>MOQ</th>
                         <th>Suggested Qty</th>
-                        <th>Purchased Qty (Input)</th>
+                        <th>Purchased Qty</th>
                         <th>Used Qty</th>
-                        <th>Remaining Qty</th>
+                        <th>Remaining</th>
                         <th>Unit Price</th>
                         <th>Total Cost</th>
-                        <th>Dieline</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {result.packagingBreakdown.map((item: PackagingBreakdownItem) => (
-                        <tr key={item.packagingId}>
-                          <td style={{ fontWeight: 700, color: '#1f1f1f' }}>{item.name}</td>
-                          <td>
-                            <span className={item.alternativeGroup ? 'cost-calc-badge-alt' : 'cost-calc-badge-req'}>
-                              {item.alternativeGroup ? 'Option' : 'Required'}
-                            </span>
-                          </td>
-                          <td style={{ color: '#666' }}>{item.moq}</td>
-                          <td style={{ fontWeight: 600 }}>{item.suggestedQuantity}</td>
-                          <td>
-                            <input
-                              type="number"
-                              min={item.moq}
-                              className="cost-calc-qty-input"
-                              value={purchasedQuantities[item.packagingId] ?? item.suggestedQuantity}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setPurchasedQuantities((prev) => ({
-                                  ...prev,
-                                  [item.packagingId]: val,
-                                }));
-                              }}
-                            />
-                          </td>
-                          <td>{item.usedQuantity}</td>
-                          <td style={{ fontWeight: 700, color: item.remainingQuantity > 0 ? '#27ae60' : '#888' }}>
-                            {item.remainingQuantity}
-                          </td>
-                          <td>Rs. {item.unitPrice.toFixed(2)}</td>
-                          <td style={{ fontWeight: 700 }}>Rs. {item.totalCost.toLocaleString()}</td>
-                          <td>
-                            {item.dielineUrl ? (
-                              <a
-                                href={item.dielineUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="cost-calc-dieline-btn"
-                              >
-                                View
-                              </a>
-                            ) : (
-                              <span style={{ color: '#bbb' }}>—</span>
-                            )}
-                          </td>
-                        </tr>
+                      {packagingTableRows.map((item) => (
+                        <React.Fragment key={item.packagingId}>
+                          <tr>
+                            <td colSpan={6} className="cost-calc-pkg-component">
+                              <div className="cost-calc-pkg-component__content">
+                                <PackagingThumbnail
+                                  src={item.imageUrl}
+                                  alt={item.name}
+                                  isSpoon={item.type.toLowerCase().includes('spoon') || item.name.toLowerCase().includes('spoon')}
+                                />
+                                <span className="cost-calc-pkg-component__name">{item.name}</span>
+                                <span className="cost-calc-pkg-component__meta">
+                                  {item.alternativeGroup ? 'Option' : 'Required'} · MOQ: {item.moq}
+                                </span>
+                                {item.dielineUrl && (
+                                  <a
+                                    href={item.dielineUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="cost-calc-dieline-btn"
+                                  >
+                                    View dieline
+                                  </a>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td>{item.suggestedQuantity}</td>
+                            <td>
+                              <input
+                                type="number"
+                                min={0}
+                                className="cost-calc-qty-input"
+                                value={purchasedQuantities[item.packagingId] ?? item.purchasedQuantity}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setPurchasedQuantities((prev) => ({
+                                    ...prev,
+                                    [item.packagingId]: val,
+                                  }));
+                                  setPricingUnavailableMsg('');
+                                }}
+                              />
+                            </td>
+                            <td>{item.usedQuantity}</td>
+                            <td className={item.remainingQuantity > 0 ? 'cost-calc-pkg-rem--ok' : ''}>
+                              {item.remainingQuantity}
+                            </td>
+                            <td>{item.unitPrice === null ? '—' : formatAmount(item.unitPrice, currency)}</td>
+                            <td className="cost-calc-pkg-total">
+                              {item.totalCost === null ? '—' : formatAmount(item.totalCost, currency)}
+                            </td>
+                          </tr>
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -916,13 +1029,18 @@ export default function CalculatorPage() {
               )}
 
               {/* Packaging Breakdown Expandable Cards (Mobile) */}
-              {result?.packagingBreakdown && result.packagingBreakdown.length > 0 && (
+              {packagingTableRows.length > 0 && (
                 <div className="cost-calc-mobile-cards">
-                  {result.packagingBreakdown.map((item: PackagingBreakdownItem) => (
+                  {packagingTableRows.map((item) => (
                     <div className="cost-calc-card" key={item.packagingId}>
                       <div className="cost-calc-card__head">
-                        <span>{item.name}</span>
-                        <span style={{ color: '#636830' }}>Rs. {item.totalCost.toLocaleString()}</span>
+                        <PackagingThumbnail
+                          src={item.imageUrl}
+                          alt={item.name}
+                          isSpoon={item.type.toLowerCase().includes('spoon') || item.name.toLowerCase().includes('spoon')}
+                        />
+                        <span className="cost-calc-card__name">{item.name}</span>
+                        <span style={{ color: '#636830' }}>{item.totalCost === null ? 'Quote required' : formatAmount(item.totalCost, currency)}</span>
                       </div>
                       <div className="cost-calc-card__row">
                         <span style={{ color: '#666' }}>Type / MOQ:</span>
@@ -936,16 +1054,17 @@ export default function CalculatorPage() {
                         <span style={{ color: '#666' }}>Purchased Quantity:</span>
                         <input
                           type="number"
-                          min={item.moq}
+                          min={0}
                           className="cost-calc-qty-input"
                           style={{ width: '85px', height: '30px' }}
-                          value={purchasedQuantities[item.packagingId] ?? item.suggestedQuantity}
+                          value={purchasedQuantities[item.packagingId] ?? item.purchasedQuantity}
                           onChange={(e) => {
                             const val = e.target.value;
                             setPurchasedQuantities((prev) => ({
                               ...prev,
                               [item.packagingId]: val,
                             }));
+                            setPricingUnavailableMsg('');
                           }}
                         />
                       </div>
@@ -957,27 +1076,60 @@ export default function CalculatorPage() {
                       </div>
                       <div className="cost-calc-card__row" style={{ borderBottom: 'none' }}>
                         <span style={{ color: '#666' }}>Unit Price:</span>
-                        <span>Rs. {item.unitPrice.toFixed(2)}</span>
+                        <span>{item.unitPrice === null ? 'Quote required' : formatAmount(item.unitPrice, currency)}</span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
 
+              {packagingTableRows
+                .filter((item) =>
+                  item.minimumOrderNotice ||
+                  item.shortBy > 0 ||
+                  (item.remainingQuantity > 0 && item.nextCheaperTier)
+                )
+                .map((item) => (
+                <div className="cost-calc-note" key={`pkg-note-${item.packagingId}`}>
+                  {item.minimumOrderNotice && (
+                    <div className="cost-calc-note__item cost-calc-note__item--muted">
+                      <span className="cost-calc-note__badge cost-calc-note__badge--muted">i</span>
+                      <span>
+                        Minimum order is {item.moq} pcs. The extra {item.remainingQuantity} pcs are added to your remaining packaging.
+                      </span>
+                    </div>
+                  )}
+                  {item.shortBy > 0 && (
+                    <div className="cost-calc-note__item cost-calc-note__item--muted">
+                      <span className="cost-calc-note__badge cost-calc-note__badge--muted">i</span>
+                      <span>Short by {item.shortBy} pcs. This is informational; it does not block the estimate.</span>
+                    </div>
+                  )}
+                  {item.remainingQuantity > 0 && item.nextCheaperTier && (
+                    <div className="cost-calc-note__item cost-calc-note__item--muted">
+                      <span className="cost-calc-note__badge cost-calc-note__badge--muted">i</span>
+                      <span>
+                        Buying {item.nextCheaperTier.minQuantity.toLocaleString()} pcs instead of {item.purchasedQuantity.toLocaleString()} lowers the price from {formatAmount(item.unitPrice, currency)} to {formatAmount(item.nextCheaperTier.rate, currency)} per piece.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+
               <div className="cost-calc-note" style={{ marginTop: '16px' }}>
                 <div className="cost-calc-note__item cost-calc-note__item--muted">
                   <span className="cost-calc-note__badge cost-calc-note__badge--muted">i</span>
                   <span>
-                    Formula: <strong>Remaining = Purchased − Used</strong>. Packaging is charged according to Purchased Quantity, not used quantity. You may purchase more packaging than immediately required.
+                    Remaining pieces are delivered with this order and can be kept for future batches. Packaging cost covers every purchased piece.
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Step 3: Additional Costs (Optional) */}
+            {/* Step 4: Additional Costs (Optional) */}
             <div className="cost-calc-section">
               <div className="cost-calc-section__head">
-                <span className="cost-calc-section__num">3</span>
+                <span className="cost-calc-section__num">4</span>
                 <div>
                   <h2 className="cost-calc-section__title">
                     Additional Costs (Optional)
@@ -1021,7 +1173,7 @@ export default function CalculatorPage() {
                 type="button"
                 className="cost-calc-btn cost-calc-btn--ghost"
                 onClick={handleSaveConfiguration}
-                disabled={!result}
+                disabled={!result || isCalculating}
               >
                 <span>💾</span>
                 {savedRef ? `Saved Ref: ${savedRef}` : 'Save Configuration'}
@@ -1056,8 +1208,8 @@ export default function CalculatorPage() {
             )}
 
             {pricingUnavailableMsg && (
-              <div style={{ margin: '0 32px 24px', padding: '18px 24px', background: '#fdf3f2', border: '1.5px solid #f9d2ce', borderRadius: '10px' }}>
-                <p style={{ color: '#b52b1e', fontWeight: 700, fontSize: '0.9rem', marginBottom: '12px' }}>
+              <div className="cost-calc-quote-notice">
+                <p>
                   {pricingUnavailableMsg}
                 </p>
                 <button
@@ -1108,8 +1260,16 @@ export default function CalculatorPage() {
                   </div>
 
                   <div className="cost-calc-summary__row">
-                    <span>Packaging Inventory Cost</span>
+                    <span>Packaging Cost (all purchased)</span>
                     <span>{formatAmount(result.summary.packagingInventoryCost, currency)}</span>
+                  </div>
+                  <div className="cost-calc-summary__row">
+                    <span>Packaging used for this order</span>
+                    <span>{formatAmount(result.summary.packagingUsedCost, currency)}</span>
+                  </div>
+                  <div className="cost-calc-summary__row">
+                    <span>Packaging remaining</span>
+                    <span>{formatAmount(result.summary.packagingRemainingCost, currency)}</span>
                   </div>
 
                   {result.summary.printingCost > 0 && (
@@ -1166,12 +1326,50 @@ export default function CalculatorPage() {
                   </div>
                 </div>
 
+                <section className="cost-calc-remaining">
+                  <h3>Remaining Packaging</h3>
+                  <p className="cost-calc-remaining__intro">
+                    Surplus pieces are delivered with this order and kept for future batches.
+                  </p>
+                  {result.packagingBreakdown.filter((item: PackagingBreakdownItem) => item.remainingQuantity > 0).length === 0 ? (
+                    <p className="cost-calc-remaining__empty">No remaining packaging for this order.</p>
+                  ) : (
+                    result.packagingBreakdown
+                      .filter((item: PackagingBreakdownItem) => item.remainingQuantity > 0)
+                      .map((item: PackagingBreakdownItem) => {
+                        const hasWeight = !item.weightExcludedFromEstimate && item.weightMinG !== null && item.weightMaxG !== null;
+                        const remainingWeightMin = hasWeight ? item.remainingQuantity * item.weightMinG! : null;
+                        const remainingWeightMax = hasWeight ? item.remainingQuantity * item.weightMaxG! : null;
+                        const weightText = hasWeight
+                          ? `${remainingWeightMin!.toLocaleString()}–${remainingWeightMax!.toLocaleString()} g`
+                          : 'Not included in weight estimate';
+
+                        return (
+                          <div className="cost-calc-remaining__item" key={`remaining-${item.packagingId}`}>
+                            <strong>{item.name}</strong>
+                            <span>{item.remainingQuantity.toLocaleString()} pcs · {formatAmount(item.remainingCost, currency)}</span>
+                            <small>Estimated weight: {weightText}</small>
+                          </div>
+                        );
+                      })
+                  )}
+                  {result.summary.totalPackagingWeightMinG !== null && result.summary.totalPackagingWeightMaxG !== null && (
+                    <p className="cost-calc-remaining__weight">
+                      Estimated packaging weight (purchased): {result.summary.totalPackagingWeightMinG.toLocaleString()}–{result.summary.totalPackagingWeightMaxG.toLocaleString()} g
+                    </p>
+                  )}
+                  <p className="cost-calc-remaining__disclaimer">
+                    Weight estimate excludes product, jars, labels, and inserts.
+                  </p>
+                </section>
+
                 {/* Action Buttons */}
                 <div className="cost-calc-summary__actions">
                   <button
                     type="button"
                     className="cost-calc-btn cost-calc-btn--primary cost-calc-btn--block"
                     onClick={handleAddToBucket}
+                    disabled={isCalculating}
                   >
                     ADD TO BUCKET
                   </button>
@@ -1180,6 +1378,7 @@ export default function CalculatorPage() {
                     type="button"
                     className="cost-calc-btn cost-calc-btn--ghost cost-calc-btn--block"
                     onClick={() => openEstimateModal()}
+                    disabled={isCalculating}
                   >
                     GENERATE ESTIMATE
                   </button>
@@ -1188,6 +1387,7 @@ export default function CalculatorPage() {
                     type="button"
                     className="cost-calc-btn cost-calc-btn--dark cost-calc-btn--block"
                     onClick={openQuoteModal}
+                    disabled={isCalculating}
                   >
                     REQUEST A QUOTATION
                   </button>
@@ -1369,8 +1569,8 @@ export default function CalculatorPage() {
                 {estimateData.product.bottleSize && <div>Bottle Size: <strong>{estimateData.product.bottleSize} capsules</strong></div>}
                 <div>Finished Units: <strong>{estimateData.product.finishedQuantity}</strong></div>
                 <div>Required Product: <strong>{estimateData.product.productRequiredAmount} {estimateData.product.productUnit}</strong></div>
-                <div>Rate Applied: <strong>Rs. {estimateData.product.unitPrice} / {estimateData.product.productUnit}</strong></div>
-                <div>Filled Product Cost: <strong>Rs. {estimateData.product.totalCost.toLocaleString()}</strong></div>
+                <div>Rate Applied: <strong>{formatAmount(estimateData.product.unitPrice, currency)} / {estimateData.product.productUnit}</strong></div>
+                <div>Filled Product Cost: <strong>{formatAmount(estimateData.product.totalCost, currency)}</strong></div>
               </div>
             </div>
 
@@ -1384,7 +1584,7 @@ export default function CalculatorPage() {
                   <tr style={{ background: '#f5f5f3', textAlign: 'left' }}>
                     <th style={{ padding: '10px 12px', borderBottom: '1.5px solid #ddd' }}>Item</th>
                     <th style={{ padding: '10px 12px', borderBottom: '1.5px solid #ddd' }}>Type</th>
-                    <th style={{ padding: '10px 12px', borderBottom: '1.5px solid #ddd' }}>Suggested</th>
+                    <th style={{ padding: '10px 12px', borderBottom: '1.5px solid #ddd' }}>Required</th>
                     <th style={{ padding: '10px 12px', borderBottom: '1.5px solid #ddd' }}>Purchased</th>
                     <th style={{ padding: '10px 12px', borderBottom: '1.5px solid #ddd' }}>Used</th>
                     <th style={{ padding: '10px 12px', borderBottom: '1.5px solid #ddd' }}>Remaining</th>
@@ -1401,8 +1601,8 @@ export default function CalculatorPage() {
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontWeight: 700 }}>{pkg.purchasedQuantity}</td>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>{pkg.usedQuantity}</td>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', color: '#27ae60', fontWeight: 700 }}>{pkg.remainingQuantity}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>Rs. {pkg.unitPrice.toFixed(2)}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontWeight: 700 }}>Rs. {pkg.totalCost.toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>{pkg.unitPrice === null ? '—' : formatAmount(pkg.unitPrice, currency)}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontWeight: 700 }}>{pkg.totalCost === null ? '—' : formatAmount(pkg.totalCost, currency)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1414,6 +1614,8 @@ export default function CalculatorPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.86rem', color: '#444' }}>
                 <div>Filled Product Cost: <strong>{formatAmount(estimateData.summary.filledProductCost, currency)}</strong></div>
                 <div>Packaging Inventory Cost: <strong>{formatAmount(estimateData.summary.packagingInventoryCost, currency)}</strong></div>
+                <div>Packaging used for this order: <strong>{formatAmount(estimateData.summary.packagingUsedCost, currency)}</strong></div>
+                <div>Packaging remaining: <strong>{formatAmount(estimateData.summary.packagingRemainingCost, currency)}</strong></div>
                 <div>Printing: <strong>{formatAmount(estimateData.summary.printingCost, currency)}</strong></div>
                 <div>Setup: <strong>{formatAmount(estimateData.summary.setupCost, currency)}</strong></div>
                 <div>Other Costs: <strong>{formatAmount(estimateData.summary.otherCosts, currency)}</strong></div>

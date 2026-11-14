@@ -18,11 +18,15 @@ async function migrate() {
       moq DECIMAL(12,2) NOT NULL DEFAULT 1,
       min_product_cost DECIMAL(12,2) DEFAULT 0.00,
       description TEXT NULL,
+      image_url VARCHAR(500) NULL,
       is_active BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
+  try {
+    await db.query(`ALTER TABLE calculator_products ADD COLUMN image_url VARCHAR(500) NULL`);
+  } catch (e) {}
 
   // 2. Calculator Product Options (Fill sizes, strengths, bottle sizes)
   await db.query(`
@@ -59,6 +63,7 @@ async function migrate() {
       printing_moq INT DEFAULT 0,
       other_cost DECIMAL(10,2) DEFAULT 0.00,
       image_url VARCHAR(500) NULL,
+      estimated_weight VARCHAR(100) NULL,
       dieline_url VARCHAR(500) NULL,
       dimensions VARCHAR(100) NULL,
       capacity VARCHAR(100) NULL,
@@ -72,6 +77,9 @@ async function migrate() {
       INDEX idx_pkg_type (type, is_active)
     )
   `);
+  try {
+    await db.query(`ALTER TABLE calculator_packaging_items ADD COLUMN estimated_weight VARCHAR(100) NULL`);
+  } catch (e) {}
 
   // 4. Calculator Pricing Tiers Table (Centralized Pricing Engine)
   await db.query(`
@@ -82,6 +90,7 @@ async function migrate() {
       min_quantity DECIMAL(12,2) NOT NULL,
       max_quantity DECIMAL(12,2) NULL,
       rate DECIMAL(10,2) NOT NULL,
+      estimated_weight DECIMAL(10,2) NULL,
       is_open_ended BOOLEAN DEFAULT FALSE,
       is_active BOOLEAN DEFAULT TRUE,
       effective_from DATE NULL,
@@ -92,6 +101,9 @@ async function migrate() {
       INDEX idx_tiers_lookup (entity_type, entity_id, is_active)
     )
   `);
+  try {
+    await db.query(`ALTER TABLE calculator_pricing_tiers ADD COLUMN estimated_weight DECIMAL(10,2) NULL`);
+  } catch (e) {}
 
   // 5. Calculator Product Packaging Rules (Compatibility & Alternatives)
   await db.query(`

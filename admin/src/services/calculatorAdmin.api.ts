@@ -8,6 +8,7 @@ export interface AdminProduct {
   moq: number;
   min_product_cost: number;
   description: string;
+  image_url?: string | null;
   is_active: number | boolean;
 }
 
@@ -19,6 +20,8 @@ export interface AdminPackaging {
   moq: number;
   max_quantity: number | null;
   unit_price: number | null;
+  image_url: string | null;
+  estimated_weight?: string | null;
   material_cost: number;
   printing_cost: number;
   setup_cost: number;
@@ -41,6 +44,7 @@ export interface AdminPricingTier {
   min_quantity: number;
   max_quantity: number | null;
   rate: number;
+  estimated_weight?: number | null;
   is_open_ended: number | boolean;
   is_active: number | boolean;
   effective_from: string | null;
@@ -58,6 +62,14 @@ export const calculatorAdminApi = {
     await api.put(`/calculator/admin/products/${id}`, data);
   },
 
+  createProduct: async (data: Omit<AdminProduct, 'id' | 'slug'> & { slug?: string }): Promise<void> => {
+    await api.post('/calculator/admin/products', data);
+  },
+
+  deleteProduct: async (id: number): Promise<void> => {
+    await api.delete(`/calculator/admin/products/${id}`);
+  },
+
   getPackaging: async (): Promise<AdminPackaging[]> => {
     const res = await api.get('/calculator/admin/packaging');
     return res.data.data;
@@ -65,6 +77,14 @@ export const calculatorAdminApi = {
 
   updatePackaging: async (id: number, data: Partial<AdminPackaging>): Promise<void> => {
     await api.put(`/calculator/admin/packaging/${id}`, data);
+  },
+
+  createPackaging: async (data: Omit<AdminPackaging, 'id'>): Promise<void> => {
+    await api.post('/calculator/admin/packaging', data);
+  },
+
+  deletePackaging: async (id: number): Promise<void> => {
+    await api.delete(`/calculator/admin/packaging/${id}`);
   },
 
   getPricingTiers: async (): Promise<AdminPricingTier[]> => {
@@ -84,4 +104,3 @@ export const calculatorAdminApi = {
     await api.delete(`/calculator/admin/pricing-tiers/${id}`);
   },
 };
-
