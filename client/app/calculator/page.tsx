@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useAppSelector } from '@/lib/redux/hooks';
 import { formatAmount } from '@/lib/utils/currency';
+import { resolveBackendImageUrl } from '@/lib/utils/image';
 import './calculator.css';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -92,7 +93,7 @@ const PackagingThumbnail = ({
 }) => (
   <span className="cost-calc-packaging-thumb">
     {src ? (
-      <img src={src} alt={alt} />
+      <img src={resolveBackendImageUrl(src)} alt={alt} />
     ) : isSpoon ? (
       <svg viewBox="0 0 72 30" fill="none" role="img" aria-label={alt}>
         <ellipse cx="12" cy="15" rx="9" ry="5.5" transform="rotate(-18 12 15)" stroke="currentColor" strokeWidth="2" />
@@ -107,6 +108,171 @@ const PackagingThumbnail = ({
     )}
   </span>
 );
+
+const PackagingDropdown = ({
+  groupName,
+  options,
+  selectedId,
+  isSpoon,
+  onChange,
+}: {
+  groupName: string;
+  options: PackagingRule[];
+  selectedId: number | null;
+  isSpoon: boolean;
+  onChange: (packagingId: number | null) => void;
+}) => {
+  const dropdownId = useId();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedIndex = options.findIndex((option) => option.packaging_id === selectedId);
+  const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : null;
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!dropdownRef.current?.contains(event.target as Node)) setIsOpen(false);
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [isOpen]);
+
+  const openAt = (index: number) => {
+    const nextIndex = Math.max(0, Math.min(index, options.length));
+    setIsOpen(true);
+    requestAnimationFrame(() => optionRefs.current[nextIndex]?.focus());
+  };
+
+  const moveFocus = (index: number, direction: -1 | 1) => {
+    const optionCount = options.length + 1;
+    const nextIndex = (index + direction + optionCount) % optionCount;
+    optionRefs.current[nextIndex]?.focus();
+  };
+
+  const selectOption = (packagingId: number | null) => {
+    onChange(packagingId);
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  return (
+    <div
+      ref={dropdownRef}
+      className={`cost-calc-packaging-select${isOpen ? ' cost-calc-packaging-select--open' : ''}`}
+    >
+      <button
+        ref={triggerRef}
+        type="button"
+        className="cost-calc-packaging-select__trigger"
+        aria-label={isSpoon ? 'Choose spoon packaging' : `Choose ${groupName}`}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls={`${dropdownId}-options`}
+        onClick={() => {
+          if (isOpen) {
+            setIsOpen(false);
+          } else {
+            openAt(selectedIndex >= 0 ? selectedIndex + 1 : 0);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            openAt(selectedIndex >= 0 ? selectedIndex + 1 : 0);
+          } else if (event.key === 'Escape') {
+            setIsOpen(false);
+          }
+        }}
+      >
+        <PackagingThumbnail
+          src={selectedOption?.image_url}
+          alt={selectedOption?.packaging_name || 'Packaging item'}
+          isSpoon={isSpoon}
+        />
+        <span className="cost-calc-packaging-select__value">
+          {selectedOption?.packaging_name || 'None selected'}
+        </span>
+        <svg className="cost-calc-packaging-select__chevron" viewBox="0 0 12 8" aria-hidden="true">
+          <path d="m1 1 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div
+          id={`${dropdownId}-options`}
+          className="cost-calc-packaging-select__options"
+          role="listbox"
+          aria-label={isSpoon ? 'Spoon packaging options' : `${groupName} options`}
+        >
+          <button
+            ref={(element) => { optionRefs.current[0] = element; }}
+            type="button"
+            className="cost-calc-packaging-select__option"
+            role="option"
+            aria-selected={!selectedOption}
+            onClick={() => selectOption(null)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                moveFocus(0, 1);
+              } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                moveFocus(0, -1);
+              } else if (event.key === 'Escape') {
+                setIsOpen(false);
+                triggerRef.current?.focus();
+              }
+            }}
+          >
+            <span className="cost-calc-packaging-select__empty-thumb" aria-hidden="true" />
+            <span>None selected</span>
+          </button>
+          {options.map((option, index) => {
+            const optionIndex = index + 1;
+            const isSelected = option.packaging_id === selectedId;
+            const isOptionSpoon =
+              String(option.packaging_type || '').toLowerCase().includes('spoon') ||
+              option.packaging_name.toLowerCase().includes('spoon');
+
+            return (
+              <button
+                key={option.packaging_id}
+                ref={(element) => { optionRefs.current[optionIndex] = element; }}
+                type="button"
+                className="cost-calc-packaging-select__option"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => selectOption(option.packaging_id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    moveFocus(optionIndex, 1);
+                  } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    moveFocus(optionIndex, -1);
+                  } else if (event.key === 'Escape') {
+                    setIsOpen(false);
+                    triggerRef.current?.focus();
+                  }
+                }}
+              >
+                <PackagingThumbnail
+                  src={option.image_url}
+                  alt={option.packaging_name}
+                  isSpoon={isOptionSpoon}
+                />
+                <span>{option.packaging_name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface BucketItem {
   id: string;
@@ -683,7 +849,7 @@ export default function CalculatorPage() {
                   >
                     <span className="cost-calc-prod-btn__art">
                       <img
-                        src={product.image_url || productImageById[product.id] || '/popular_gold_jar.png'}
+                        src={resolveBackendImageUrl(product.image_url || productImageById[product.id] || '/popular_gold_jar.png')}
                         alt=""
                       />
                     </span>
@@ -879,9 +1045,6 @@ export default function CalculatorPage() {
               <div className="cost-calc-packaging-row">
                 <div className="cost-calc-packaging-choices">
                   {Object.entries(alternativeGroups).map(([groupName, options]) => {
-                    const selectedOption = options.find(
-                      (option) => option.packaging_id === Number(selectedAlternatives[groupName])
-                    );
                     const isSpoon = groupName.toLowerCase().includes('spoon');
 
                     return (
@@ -893,32 +1056,18 @@ export default function CalculatorPage() {
                               : `Select ${groupName}:`}
                           </label>
                         )}
-                        <div className="cost-calc-field__control cost-calc-field__control--select cost-calc-packaging-select">
-                          <PackagingThumbnail
-                            src={selectedOption?.image_url}
-                            alt={selectedOption?.packaging_name || 'Packaging item'}
-                            isSpoon={isSpoon}
-                          />
-                          <select
-                            aria-label={isSpoon ? 'Choose spoon packaging' : `Choose ${groupName}`}
-                            className="cost-calc-field__input cost-calc-field__select"
-                            value={String(selectedAlternatives[groupName] || '')}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setSelectedAlternatives((prev) => ({
-                                ...prev,
-                                [groupName]: val ? Number(val) : null,
-                              }));
-                            }}
-                          >
-                            <option value="">None selected</option>
-                            {options.map((opt) => (
-                              <option key={opt.packaging_id} value={opt.packaging_id}>
-                                {opt.packaging_name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        <PackagingDropdown
+                          groupName={groupName}
+                          options={options}
+                          selectedId={selectedAlternatives[groupName] ?? null}
+                          isSpoon={isSpoon}
+                          onChange={(packagingId) => {
+                            setSelectedAlternatives((prev) => ({
+                              ...prev,
+                              [groupName]: packagingId,
+                            }));
+                          }}
+                        />
                       </div>
                     );
                   })}
