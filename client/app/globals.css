@@ -11278,6 +11278,7 @@ img {
 }
 
 @media (max-width: 992px) {
+
   .about-story__grid,
   .about-why__grid {
     grid-template-columns: 1fr;
@@ -13114,6 +13115,7 @@ img {
     transform: scaleX(1);
     opacity: 0.9;
   }
+
   to {
     transform: scaleX(0);
     opacity: 0.4;
@@ -13140,4 +13142,3 @@ img {
     transform: translateY(calc(100% + 24px)) scale(0.96);
   }
 }
-

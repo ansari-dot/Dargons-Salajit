@@ -22,6 +22,8 @@ import {
   Tag,
   ScrollText,
   Calculator,
+  BadgeCheck,
+  Shield,
 } from 'lucide-react';
 import { BrandLogo } from '../common/BrandLogo';
 
@@ -50,6 +52,8 @@ const mainNavItems: NavItemConfig[] = [
   { name: 'Inventory', path: '/inventory', icon: Boxes },
   { name: 'Coupons', path: '/coupons', icon: Ticket },
   { name: 'Gallery Showcase', path: '/gallery', icon: ImageIcon },
+  { name: 'Certifications', path: '/certifications', icon: BadgeCheck },
+  { name: 'Trademark', path: '/trademark', icon: Shield },
   { name: 'Shipping', path: '/shipping', icon: Truck },
   { name: 'Reports', path: '/reports', icon: BarChart2 },
   { name: 'Marketing', path: '/marketing', icon: Megaphone },

@@ -19,6 +19,8 @@ import { BlogPage } from '../pages/Blog/Blog';
 import { SettingsPage } from '../pages/Settings/Settings';
 import { DealsPage } from '../pages/Deals/DealsPage';
 import { UploadBrandPage } from '../pages/Brands/UploadBrandPage';
+import { CertificationsPage } from '../pages/Certifications/CertificationsPage';
+import { TrademarkPage } from '../pages/Trademark/TrademarkPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -47,6 +49,8 @@ export const AppRoutes: React.FC = () => {
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="coupons" element={<CouponsPage />} />
         <Route path="gallery" element={<GalleryPage />} />
+        <Route path="certifications" element={<CertificationsPage />} />
+        <Route path="trademark" element={<TrademarkPage />} />
         <Route path="shipping" element={<ShippingPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="marketing" element={<MarketingPage />} />

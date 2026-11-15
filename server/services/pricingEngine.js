@@ -4,6 +4,19 @@
  * "PRIVATE LABEL SHILAJIT - Configuration & Cost Calculator"
  */
 const db = require('../config/db');
+const { getCalculatorCurrencyOptions } = require('./calculatorCurrency.service');
+
+const parsePurchasedQuantity = (value, packagingName) => {
+  const isIntegerString = typeof value === 'string' && /^\d+$/.test(value.trim());
+  const isIntegerNumber = typeof value === 'number' && Number.isSafeInteger(value);
+  const quantity = Number(value);
+
+  if ((!isIntegerString && !isIntegerNumber) || !Number.isSafeInteger(quantity) || quantity <= 0) {
+    throw new Error(`${packagingName} purchased quantity must be a positive whole number.`);
+  }
+
+  return quantity;
+};
 
 const parseWeightRange = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -127,7 +140,7 @@ class PricingEngine {
 
     const [rules] = await db.query(`
       SELECT r.*, p.name AS packaging_name, p.code AS packaging_code, p.type AS packaging_type,
-             p.moq, p.unit_price, p.dieline_url, p.capacity, p.image_url
+             p.moq, p.unit_price, p.dieline_url, p.capacity, p.image_url, p.technical_specs, p.estimated_weight
       FROM calculator_product_packaging_rules r
       INNER JOIN calculator_packaging_items p ON p.id = r.packaging_id
       WHERE r.is_active = 1 AND p.is_active = 1
@@ -143,7 +156,8 @@ class PricingEngine {
       options,
       packagingItems,
       rules,
-      tiers
+      tiers,
+      currencies: await getCalculatorCurrencyOptions()
     };
   }
 
@@ -151,6 +165,10 @@ class PricingEngine {
    * Calculate complete configuration with backend authoritative validation
    */
   static async calculate(payload) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('A valid calculation request is required.');
+    }
+
     const {
       productId,
       fillSize,        // number (g or ml) or label
@@ -161,6 +179,13 @@ class PricingEngine {
       packagingPurchases = {},   // map of packagingId -> purchasedQuantity
       additionalCosts = {}
     } = payload;
+
+    if (!Array.isArray(selectedPackagingIds)) {
+      throw new Error('Selected packaging must be provided as a list.');
+    }
+    if (!packagingPurchases || typeof packagingPurchases !== 'object' || Array.isArray(packagingPurchases)) {
+      throw new Error('Packaging purchases must be provided as a quantity map.');
+    }
 
     // 1. Validate Product
     const [prodRows] = await db.query(
@@ -301,7 +326,7 @@ class PricingEngine {
     const [rules] = await db.query(`
       SELECT r.*, p.id AS pkg_id, p.name AS pkg_name, p.code AS pkg_code, p.type AS pkg_type,
              p.moq, p.unit_price, p.material_cost, p.printing_cost, p.setup_cost, p.other_cost,
-             p.dieline_url, p.capacity, p.estimated_weight, p.image_url
+             p.dieline_url, p.capacity, p.estimated_weight, p.image_url, p.technical_specs
       FROM calculator_product_packaging_rules r
       INNER JOIN calculator_packaging_items p ON p.id = r.packaging_id
       WHERE r.product_id = ? AND r.is_active = 1 AND p.is_active = 1
@@ -384,9 +409,8 @@ class PricingEngine {
       // Purchased Quantity (Rule: customer may purchase more packaging than immediately required)
       const itemMOQ = Math.max(1, Math.ceil(Number(item.moq) || 200));
       const hasEnteredPurchase = Object.prototype.hasOwnProperty.call(packagingPurchases, item.pkg_id);
-      const enteredPurchased = Number(packagingPurchases[item.pkg_id]);
-      const purchasedQty = hasEnteredPurchase && Number.isFinite(enteredPurchased) && enteredPurchased > 0
-        ? Math.floor(enteredPurchased)
+      const purchasedQty = hasEnteredPurchase
+        ? parsePurchasedQuantity(packagingPurchases[item.pkg_id], item.pkg_name)
         : Math.max(suggestedQty, itemMOQ);
       const usedQty = suggestedQty;
       const remainingQty = Math.max(0, purchasedQty - usedQty);
@@ -411,6 +435,7 @@ class PricingEngine {
         weightMinG: weightRange?.min ?? null,
         weightMaxG: weightRange?.max ?? null,
         weightExcludedFromEstimate: weightExcluded,
+        technicalSpecs: item.technical_specs || null,
         dielineUrl: item.dieline_url || null,
         capacity: item.capacity || null
       };

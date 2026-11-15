@@ -17,13 +17,15 @@ import {
   RefreshCw,
   Box,
   X,
+  DollarSign,
 } from 'lucide-react';
 import { CalculatorImageUpload } from './CalculatorImageUpload';
 import { PackagingItemsPage } from './PackagingItemsPage';
 import { PricingEngineTiersPage } from './PricingEngineTiersPage';
+import { CalculatorCurrencySettingsPage } from './CalculatorCurrencySettingsPage';
 import './CalculatorManagerPage.css';
 
-type TabId = 'products' | 'packaging' | 'tiers';
+type TabId = 'products' | 'packaging' | 'tiers' | 'currencies';
 
 const emptyProduct = {
   name: '',
@@ -101,7 +103,7 @@ const CardHeader: React.FC<{
         </button>
         {currencyOpen && (
           <ul className="cm-cur__menu">
-            {['PKR', 'USD', 'AED'].map((c) => (
+            {['PKR', 'USD', 'GBP', 'EUR'].map((c) => (
               <li key={c}>
                 <button
                   type="button"
@@ -359,6 +361,12 @@ export const CalculatorManagerPage: React.FC = () => {
           icon={<Calculator />}
           label={`Pricing Engine Tiers (${tiers.length})`}
         />
+        <TabBtn
+          active={activeTab === 'currencies'}
+          onClick={() => setActiveTab('currencies')}
+          icon={<DollarSign />}
+          label="Currencies"
+        />
       </div>
 
       {/* TAB 1: PRODUCTS */}
@@ -445,6 +453,7 @@ export const CalculatorManagerPage: React.FC = () => {
           }}
         />
       )}
+      {activeTab === 'currencies' && <CalculatorCurrencySettingsPage />}
 
       {/* ADD PRODUCT */}
       {isAddingProduct && (

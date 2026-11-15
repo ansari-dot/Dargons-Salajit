@@ -659,3 +659,23 @@ export const formatAmount = (
 
   return `${meta.symbol}${spacer}${formatted}`;
 };
+
+/** Formats a PKR amount using an explicit PKR-per-currency-unit exchange rate. */
+export const formatAmountWithRate = (
+  amountInPkr: number | string | undefined | null,
+  currency: string = 'PKR',
+  ratePkrPerUnit: number = 1
+): string => {
+  const code = normalizeCurrency(currency);
+  const meta = CURRENCY_META[code];
+  const amount = Number(amountInPkr) || 0;
+  const rate = Number(ratePkrPerUnit);
+  const display = code === 'PKR' ? amount : rate > 0 ? amount / rate : fromPkr(amount, code);
+  const formatted = display.toLocaleString('en-US', {
+    minimumFractionDigits: meta.decimals,
+    maximumFractionDigits: meta.decimals,
+  });
+  const spacer = /^[A-Za-z]/.test(meta.symbol) ? ' ' : '';
+
+  return `${meta.symbol}${spacer}${formatted}`;
+};

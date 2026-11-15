@@ -14,6 +14,8 @@ export default function NavMenu() {
     { href: '/gallery', label: 'GALLERY' },
     { href: '/blogs', label: 'BLOGS' },
     { href: '/calculator', label: 'CALCULATOR' },
+    { href: '/certificates', label: 'CERTIFICATIONS' },
+    { href: '/trademark', label: 'TRADEMARK' },
     { href: '/contact', label: 'CONTACT US' },
   ];
 

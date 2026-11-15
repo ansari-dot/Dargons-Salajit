@@ -2,8 +2,9 @@
 
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useAppSelector } from '@/lib/redux/hooks';
-import { formatAmount } from '@/lib/utils/currency';
+import { formatAmountWithRate } from '@/lib/utils/currency';
 import { resolveBackendImageUrl } from '@/lib/utils/image';
+import { useToast } from '@/components/ui/Toast';
 import './calculator.css';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -17,6 +18,15 @@ interface ProductItem {
   min_product_cost: number;
   description: string;
   image_url?: string | null;
+}
+
+interface CalculatorCurrency {
+  code: string;
+  name: string;
+  isEnabled: boolean;
+  ratePkrPerUnit: number;
+  rateSource: string;
+  rateUpdatedAt: string | null;
 }
 
 const productImageById: Record<number, string> = {
@@ -53,6 +63,7 @@ interface PackagingRule {
   unit_price: number | null;
   dieline_url: string | null;
   capacity: string | null;
+  technical_specs?: string | null;
 }
 
 interface PackagingBreakdownItem {
@@ -73,10 +84,17 @@ interface PackagingBreakdownItem {
   weightMinG: number | null;
   weightMaxG: number | null;
   weightExcludedFromEstimate: boolean;
+  technicalSpecs?: string | null;
   unitPrice: number | null;
   totalCost: number | null;
   usedCost: number | null;
   remainingCost: number | null;
+  pricingTier?: {
+    minQuantity: number;
+    maxQuantity: number | null;
+    isOpenEnded: boolean;
+    rate: number;
+  } | null;
   nextCheaperTier: { minQuantity: number; rate: number } | null;
   dielineUrl: string | null;
   capacity: string | null;
@@ -86,28 +104,79 @@ const PackagingThumbnail = ({
   src,
   alt,
   isSpoon = false,
+  type = '',
 }: {
   src?: string | null;
   alt: string;
   isSpoon?: boolean;
-}) => (
-  <span className="cost-calc-packaging-thumb">
-    {src ? (
-      <img src={resolveBackendImageUrl(src)} alt={alt} />
-    ) : isSpoon ? (
-      <svg viewBox="0 0 72 30" fill="none" role="img" aria-label={alt}>
-        <ellipse cx="12" cy="15" rx="9" ry="5.5" transform="rotate(-18 12 15)" stroke="currentColor" strokeWidth="2" />
-        <path d="M19 13.5L65 3.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-        <path d="M19 16.5L65 6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      </svg>
-    ) : (
-      <svg viewBox="0 0 32 32" fill="none" role="img" aria-label={alt}>
-        <path d="M5 10.5 16 5l11 5.5v12L16 28 5 22.5v-12Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-        <path d="m5.5 10.5 10.5 5 10.5-5M16 16v11" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-      </svg>
-    )}
-  </span>
-);
+  type?: string;
+}) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const description = `${type} ${alt}`.toLowerCase();
+  const isSpoonItem = isSpoon || description.includes('spoon');
+  const isTube = description.includes('tube');
+  const isJar = description.includes('jar') || description.includes('bottle') || description.includes('container');
+  const isLabel = description.includes('label');
+  const isBrochure = description.includes('brochure') || description.includes('insert');
+  const spoonColor = description.includes('gold')
+    ? '#b88922'
+    : description.includes('black')
+      ? '#3d3d3d'
+      : '#92989b';
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+
+  return (
+    <span className="cost-calc-packaging-thumb">
+      {src && !imageFailed ? (
+        <img
+          src={resolveBackendImageUrl(src)}
+          alt={alt}
+          loading="lazy"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <svg viewBox="0 0 72 42" fill="none" role="img" aria-label={alt}>
+          {isSpoonItem ? (
+            <>
+              <ellipse cx="13" cy="22" rx="9" ry="6" transform="rotate(-18 13 22)" fill={spoonColor} />
+              <path d="M21 19.5 63 7" stroke={spoonColor} strokeWidth="5" strokeLinecap="round" />
+              <path d="M21 23 63 10.5" stroke="#fff" strokeOpacity=".6" strokeWidth="1" strokeLinecap="round" />
+            </>
+          ) : isTube ? (
+            <>
+              <rect x="25" y="6" width="22" height="31" rx="7" fill="#d8c49b" stroke="#87714a" strokeWidth="1.5" />
+              <path d="M27 12h18M29 33h14" stroke="#87714a" strokeWidth="1.5" />
+            </>
+          ) : isJar ? (
+            <>
+              <rect x="24" y="5" width="24" height="8" rx="2" fill="#555" />
+              <path d="M26 13h20v22a4 4 0 0 1-4 4h-12a4 4 0 0 1-4-4V13Z" fill="#b08b62" fillOpacity=".75" stroke="#775d3e" strokeWidth="1.5" />
+              <path d="M28 22h16v7H28z" fill="#eee9dc" />
+            </>
+          ) : isLabel ? (
+            <>
+              <rect x="12" y="8" width="48" height="27" rx="4" fill="#f3edda" stroke="#9c8a60" strokeWidth="1.5" />
+              <path d="M20 16h32M20 21h24M20 27h28" stroke="#8a7c5e" strokeWidth="1.5" strokeLinecap="round" />
+            </>
+          ) : isBrochure ? (
+            <>
+              <path d="M20 5h24l10 10v22H20V5Z" fill="#f5f0df" stroke="#99885e" strokeWidth="1.5" />
+              <path d="M44 5v11h10M26 22h22M26 27h18M26 32h14" stroke="#99885e" strokeWidth="1.5" strokeLinecap="round" />
+            </>
+          ) : (
+            <>
+              <path d="m12 13 24-9 24 9v20l-24 9-24-9V13Z" fill="#eee7d5" stroke="#897b5c" strokeWidth="1.5" strokeLinejoin="round" />
+              <path d="m13 13 23 9 23-9M36 22v18" stroke="#897b5c" strokeWidth="1.5" strokeLinejoin="round" />
+            </>
+          )}
+        </svg>
+      )}
+    </span>
+  );
+};
 
 const PackagingDropdown = ({
   groupName,
@@ -192,6 +261,7 @@ const PackagingDropdown = ({
           src={selectedOption?.image_url}
           alt={selectedOption?.packaging_name || 'Packaging item'}
           isSpoon={isSpoon}
+          type={selectedOption?.packaging_type}
         />
         <span className="cost-calc-packaging-select__value">
           {selectedOption?.packaging_name || 'None selected'}
@@ -263,6 +333,7 @@ const PackagingDropdown = ({
                   src={option.image_url}
                   alt={option.packaging_name}
                   isSpoon={isOptionSpoon}
+                  type={option.packaging_type}
                 />
                 <span>{option.packaging_name}</span>
               </button>
@@ -302,8 +373,9 @@ interface BucketItem {
 }
 
 export default function CalculatorPage() {
-  const currency = useAppSelector((state) => state.ui.selectedCurrency);
+  const [currency, setCurrency] = useState('PKR');
   const user = useAppSelector((state) => state.auth.user);
+  const toast = useToast();
 
   // ─────────────────────────────────────────────
   // Configuration Data Loaded from Backend
@@ -311,6 +383,7 @@ export default function CalculatorPage() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [productOptions, setProductOptions] = useState<ProductOptionItem[]>([]);
   const [rules, setRules] = useState<PackagingRule[]>([]);
+  const [calculatorCurrencies, setCalculatorCurrencies] = useState<CalculatorCurrency[]>([]);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
   // ─────────────────────────────────────────────
@@ -343,7 +416,6 @@ export default function CalculatorPage() {
   const [result, setResult] = useState<any>(null);
   const [unavailablePackagingBreakdown, setUnavailablePackagingBreakdown] = useState<PackagingBreakdownItem[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
-  const [calcError, setCalcError] = useState<string>('');
   const [pricingUnavailableMsg, setPricingUnavailableMsg] = useState<string>('');
   const requestSeq = useRef<number>(0);
 
@@ -364,6 +436,15 @@ export default function CalculatorPage() {
   const [quoteFeedback, setQuoteFeedback] = useState<string>('');
 
   const toNumber = (value: string | number) => Math.max(0, Number(value) || 0);
+  const selectedCurrencySettings = calculatorCurrencies.find((item) => item.code === currency);
+  const currencyRate = selectedCurrencySettings?.ratePkrPerUnit || 1;
+  const formatAmount = (amount: number | string | null | undefined, code = currency) => (
+    formatAmountWithRate(
+      amount,
+      code,
+      calculatorCurrencies.find((item) => item.code === code)?.ratePkrPerUnit || 1
+    )
+  );
 
   // Load Bucket from localStorage on mount
   useEffect(() => {
@@ -394,10 +475,17 @@ export default function CalculatorPage() {
         const res = await fetch(`${API_URL}/calculator/config`);
         const json = await res.json();
         if (res.ok && json.success) {
-          const { products: pList, options: oList, rules: rList } = json.data;
+          const { products: pList, options: oList, rules: rList, currencies: currencyList } = json.data;
           setProducts(pList || []);
           setProductOptions(oList || []);
           setRules(rList || []);
+          const enabledCurrencies = Array.isArray(currencyList) ? currencyList : [];
+          setCalculatorCurrencies(enabledCurrencies);
+          setCurrency((current) => (
+            enabledCurrencies.some((item: CalculatorCurrency) => item.code === current)
+              ? current
+              : 'PKR'
+          ));
 
           if (pList && pList.length > 0) {
             setProductId(pList[0].id);
@@ -443,7 +531,6 @@ export default function CalculatorPage() {
     setSelectedAlternatives(initialAltChoices);
     setPurchasedQuantities({});
     setPricingUnavailableMsg('');
-    setCalcError('');
     setResult(null);
     setUnavailablePackagingBreakdown([]);
   }, [productId, rules]);
@@ -500,12 +587,27 @@ export default function CalculatorPage() {
     return ids;
   };
 
+  const getInvalidPackagingPurchase = () => {
+    const selectedIds = new Set(getSelectedPackagingIds().map(String));
+    for (const [packagingId, rawQuantity] of Object.entries(purchasedQuantities)) {
+      if (!selectedIds.has(packagingId)) continue;
+
+      const quantity = rawQuantity.trim();
+      if (!/^\d+$/.test(quantity) || !Number.isSafeInteger(Number(quantity)) || Number(quantity) <= 0) {
+        const item = activeRules.find((rule) => rule.packaging_id === Number(packagingId));
+        return item?.packaging_name || 'Packaging';
+      }
+    }
+    return null;
+  };
+
   // Build payload for authoritative backend calculation
   const buildPayload = () => {
-    const packagingPurchasesNumeric: Record<number, number> = {};
+    const selectedIds = new Set(getSelectedPackagingIds());
+    const packagingPurchasesNumeric: Record<number, string> = {};
     for (const [pkgId, qtyStr] of Object.entries(purchasedQuantities)) {
-      if (Number(qtyStr) > 0) {
-        packagingPurchasesNumeric[Number(pkgId)] = Number(qtyStr);
+      if (selectedIds.has(Number(pkgId))) {
+        packagingPurchasesNumeric[Number(pkgId)] = qtyStr;
       }
     }
 
@@ -529,10 +631,24 @@ export default function CalculatorPage() {
 
   // Authoritative Calculation
   const handleCalculate = async () => {
-    if (!productId || toNumber(finishedQty) <= 0) return;
+    const quantity = Number(finishedQty);
+    if (!productId) {
+      toast.error('Select a product to calculate costs.', 'Calculation failed');
+      return;
+    }
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      toast.error('Finished quantity must be a positive whole number.', 'Calculation failed');
+      return;
+    }
+    const invalidPackaging = getInvalidPackagingPurchase();
+    if (invalidPackaging) {
+      requestSeq.current++;
+      setIsCalculating(false);
+      toast.error(`${invalidPackaging} purchased quantity must be a positive whole number.`, 'Calculation failed');
+      return;
+    }
 
     setIsCalculating(true);
-    setCalcError('');
     setPricingUnavailableMsg('');
 
     const seq = ++requestSeq.current;
@@ -563,13 +679,19 @@ export default function CalculatorPage() {
       } else {
         setResult(null);
         setUnavailablePackagingBreakdown([]);
-        setCalcError(json.message || 'Validation error calculating costs.');
+        const message = [json.message, json.error].find(
+          (value): value is string => typeof value === 'string' && value.trim().length > 0
+        );
+        toast.error(
+          message || 'The calculator could not complete the calculation. Please review your inputs and try again.',
+          'Calculation failed'
+        );
       }
     } catch {
       if (seq !== requestSeq.current) return;
       setResult(null);
       setUnavailablePackagingBreakdown([]);
-      setCalcError('Unable to connect to the server.');
+      toast.error('Unable to connect to the server.', 'Connection error');
     } finally {
       if (seq === requestSeq.current) {
         setIsCalculating(false);
@@ -582,22 +704,32 @@ export default function CalculatorPage() {
     if (isLoadingConfig) return;
 
     const scheduledRequest = ++requestSeq.current;
-    const qty = toNumber(finishedQty);
-    if (!productId || qty <= 0) {
+    const qty = Number(finishedQty);
+    if (!productId || !Number.isInteger(qty) || qty <= 0) {
       requestSeq.current++;
       setResult(null);
       setUnavailablePackagingBreakdown([]);
       setPricingUnavailableMsg('');
-      setCalcError('');
       setIsCalculating(false);
       return;
     }
 
+    const invalidPackaging = getInvalidPackagingPurchase();
+    if (invalidPackaging) {
+      setIsCalculating(false);
+      const timer = setTimeout(() => {
+        if (requestSeq.current === scheduledRequest) {
+          toast.error(`${invalidPackaging} purchased quantity must be a positive whole number.`, 'Calculation failed');
+        }
+      }, 350);
+      return () => {
+        clearTimeout(timer);
+        requestSeq.current++;
+      };
+    }
+
     setIsCalculating(true);
-    setResult(null);
-    setUnavailablePackagingBreakdown([]);
     setPricingUnavailableMsg('');
-    setCalcError('');
     const timer = setTimeout(() => {
       if (requestSeq.current === scheduledRequest) {
         handleCalculate();
@@ -1125,10 +1257,26 @@ export default function CalculatorPage() {
                                   src={item.imageUrl}
                                   alt={item.name}
                                   isSpoon={item.type.toLowerCase().includes('spoon') || item.name.toLowerCase().includes('spoon')}
+                                  type={item.type}
                                 />
                                 <span className="cost-calc-pkg-component__name">{item.name}</span>
                                 <span className="cost-calc-pkg-component__meta">
                                   {item.alternativeGroup ? 'Option' : 'Required'} · MOQ: {item.moq}
+                                </span>
+                                {item.technicalSpecs && (
+                                  <span className="cost-calc-pkg-component__meta">{item.technicalSpecs}</span>
+                                )}
+                                <span className="cost-calc-pkg-component__meta">
+                                  {item.pricingTier
+                                    ? `Applied tier: ${item.pricingTier.minQuantity.toLocaleString()}–${item.pricingTier.maxQuantity?.toLocaleString() ?? 'open'} pcs`
+                                    : item.unitPrice === null ? 'Custom quotation required' : ''}
+                                </span>
+                                <span className="cost-calc-pkg-component__meta">
+                                  {item.weightExcludedFromEstimate
+                                    ? 'Weight excluded from estimate'
+                                    : item.weightMinG !== null && item.weightMaxG !== null
+                                      ? `${item.weightMinG}–${item.weightMaxG} g / pc`
+                                      : 'Weight not configured'}
                                 </span>
                                 {item.dielineUrl && (
                                   <a
@@ -1187,6 +1335,7 @@ export default function CalculatorPage() {
                           src={item.imageUrl}
                           alt={item.name}
                           isSpoon={item.type.toLowerCase().includes('spoon') || item.name.toLowerCase().includes('spoon')}
+                          type={item.type}
                         />
                         <span className="cost-calc-card__name">{item.name}</span>
                         <span style={{ color: '#636830' }}>{item.totalCost === null ? 'Quote required' : formatAmount(item.totalCost, currency)}</span>
@@ -1194,6 +1343,30 @@ export default function CalculatorPage() {
                       <div className="cost-calc-card__row">
                         <span style={{ color: '#666' }}>Type / MOQ:</span>
                         <span>{item.alternativeGroup ? 'Option' : 'Required'} (MOQ: {item.moq})</span>
+                      </div>
+                      {item.technicalSpecs && (
+                        <div className="cost-calc-card__row">
+                          <span style={{ color: '#666' }}>Material / Specs:</span>
+                          <span>{item.technicalSpecs}</span>
+                        </div>
+                      )}
+                      <div className="cost-calc-card__row">
+                        <span style={{ color: '#666' }}>Applied tier:</span>
+                        <span>
+                          {item.pricingTier
+                            ? `${item.pricingTier.minQuantity.toLocaleString()}–${item.pricingTier.maxQuantity?.toLocaleString() ?? 'open'} pcs`
+                            : item.unitPrice === null ? 'Custom quotation' : 'Fixed price'}
+                        </span>
+                      </div>
+                      <div className="cost-calc-card__row">
+                        <span style={{ color: '#666' }}>Estimated weight / pc:</span>
+                        <span>
+                          {item.weightExcludedFromEstimate
+                            ? 'Excluded'
+                            : item.weightMinG !== null && item.weightMaxG !== null
+                              ? `${item.weightMinG}–${item.weightMaxG} g`
+                              : 'Not configured'}
+                        </span>
                       </div>
                       <div className="cost-calc-card__row">
                         <span style={{ color: '#666' }}>Suggested Quantity:</span>
@@ -1349,13 +1522,7 @@ export default function CalculatorPage() {
               </div>
             </div>
 
-            {/* Errors / Custom Quotation Trigger */}
-            {calcError && (
-              <p className="cost-calc-error" style={{ padding: '0 32px 20px', color: '#c0392b', fontWeight: 600 }}>
-                ⚠️ {calcError}
-              </p>
-            )}
-
+            {/* Custom Quotation Trigger */}
             {pricingUnavailableMsg && (
               <div className="cost-calc-quote-notice">
                 <p>
@@ -1376,6 +1543,36 @@ export default function CalculatorPage() {
           <aside className="cost-calc-summary">
             <div className="cost-calc-summary__head">
               <h2 className="cost-calc-summary__title">Cost Summary</h2>
+              {calculatorCurrencies.length > 0 && (
+                <div className="cost-calc-summary__currency">
+                  <label htmlFor="calculator-currency">Currency</label>
+                  <select
+                    id="calculator-currency"
+                    value={currency}
+                    onChange={(event) => setCurrency(event.target.value)}
+                  >
+                    {calculatorCurrencies.map((item) => (
+                      <option key={item.code} value={item.code}>
+                        {item.code} — {item.name}
+                      </option>
+                    ))}
+                  </select>
+                  <small>
+                    {currency === 'PKR'
+                      ? 'PKR base currency'
+                      : `1 ${currency} = PKR ${currencyRate.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 4,
+                      })}`}
+                    {' · '}
+                    {selectedCurrencySettings?.rateSource || 'Rate source unavailable'}
+                    {' · '}
+                    {selectedCurrencySettings?.rateUpdatedAt
+                      ? `Updated ${new Date(selectedCurrencySettings.rateUpdatedAt).toLocaleString()}`
+                      : 'Update time unavailable'}
+                  </small>
+                </div>
+              )}
               <span
                 className={`cost-calc-summary__badge ${
                   isCalculating
@@ -1744,7 +1941,17 @@ export default function CalculatorPage() {
                 <tbody>
                   {estimateData.packagingBreakdown.map((pkg: PackagingBreakdownItem) => (
                     <tr key={pkg.packagingId}>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontWeight: 700 }}>{pkg.name}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontWeight: 700 }}>
+                        {pkg.name}
+                        {(pkg.technicalSpecs || pkg.pricingTier) && (
+                          <small style={{ display: 'block', fontWeight: 400, color: '#666' }}>
+                            {pkg.technicalSpecs ? `${pkg.technicalSpecs} · ` : ''}
+                            {pkg.pricingTier
+                              ? `Tier ${pkg.pricingTier.minQuantity}–${pkg.pricingTier.maxQuantity ?? 'open'} pcs`
+                              : ''}
+                          </small>
+                        )}
+                      </td>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>{pkg.type}</td>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>{pkg.suggestedQuantity}</td>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontWeight: 700 }}>{pkg.purchasedQuantity}</td>

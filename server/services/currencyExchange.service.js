@@ -436,6 +436,8 @@ const FALLBACK_RATES = {
 let rateCache = {
     rates: null,
     fetchedAt: 0,
+    source: "fallback",
+    updatedAt: null,
 };
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -500,7 +502,15 @@ const getExchangeRate = async () => {
         }
 
         // The endpoint is PKR based, so the table already means "per 1 PKR".
-        rateCache = { rates: data.rates, fetchedAt: now };
+        const apiUpdatedAt = data.time_last_update_utc
+            ? new Date(data.time_last_update_utc)
+            : new Date(now);
+        rateCache = {
+            rates: data.rates,
+            fetchedAt: now,
+            source: "live",
+            updatedAt: Number.isNaN(apiUpdatedAt.getTime()) ? new Date(now).toISOString() : apiUpdatedAt.toISOString(),
+        };
 
         return data.rates;
     } catch (error) {
@@ -508,12 +518,20 @@ const getExchangeRate = async () => {
 
         // 1) last good table (even if stale) → 2) built-in fallbacks
         if (rateCache.rates) {
+            rateCache.source = "cached";
             return rateCache.rates;
         }
 
+        rateCache.source = "fallback";
+        rateCache.updatedAt = null;
         return FALLBACK_RATES;
     }
 };
+
+const getExchangeRateMetadata = () => ({
+    source: rateCache.source,
+    updatedAt: rateCache.updatedAt,
+});
 
 const getRateForCurrency = async (currency) => {
     const code = String(currency || "").trim().toUpperCase();
@@ -579,6 +597,7 @@ module.exports = {
     isArabCountry,
     isSupportedCurrency,
     getExchangeRate,
+    getExchangeRateMetadata,
     getRateForCurrency,
     getCurrencyInfo,
     convertFromPkr,

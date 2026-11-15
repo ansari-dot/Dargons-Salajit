@@ -27,6 +27,37 @@ const initDb = async () => {
     }
 
     // Auto-migrate columns if tables existed from an earlier schema version
+    await addColumnIfNotExist('certifications', 'image_url', 'TEXT NULL');
+
+    // Trademarks table
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS trademarks (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          subtitle VARCHAR(500) NULL,
+          image_url TEXT NULL,
+          document_url TEXT NULL,
+          display_order INT NOT NULL DEFAULT 0,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_trademarks_active_order (is_active, display_order)
+        )
+      `);
+
+      // Seed default trademarks if table is empty
+      const [existingTrademarks] = await db.query('SELECT COUNT(*) as count FROM trademarks');
+      if (existingTrademarks[0].count === 0) {
+        await db.query(`
+          INSERT INTO trademarks (title, subtitle, image_url, document_url, display_order, is_active)
+          VALUES 
+          ('Trademark Certificate', 'Dragon Shilajit™ Registered Trademark', 'https://cdn.shopify.com/s/files/1/0720/3409/1309/files/Trademark.jpg', 'https://cdn.shopify.com/s/files/1/0720/3409/1309/files/Trademark.jpg', 0, 1),
+          ('Trademark Registration', 'Official Registration Document', 'https://cdn.shopify.com/s/files/1/0720/3409/1309/files/Trademark_1.jpg', 'https://cdn.shopify.com/s/files/1/0720/3409/1309/files/Trademark_1.jpg', 1, 1)
+        `);
+        console.log('✨ Seeded default Trademarks.');
+      }
+    } catch (e) { /* table already exists or error handled */ }
     await addColumnIfNotExist('products', 'category_id', 'INT DEFAULT 1');
     await addColumnIfNotExist('products', 'sku', "VARCHAR(100) DEFAULT 'SKU-001'");
     await addColumnIfNotExist('products', 'name', "VARCHAR(255) NOT NULL DEFAULT 'Product'");

@@ -179,6 +179,36 @@ async function migrate() {
 
   console.log('✅ Tables created or confirmed.');
 
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS calculator_currency_settings (
+      currency_code CHAR(3) PRIMARY KEY,
+      is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      rate_mode ENUM('automatic', 'manual') NOT NULL DEFAULT 'automatic',
+      manual_rate_pkr_per_unit DECIMAL(14,6) NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+  for (const currencyCode of ['PKR', 'USD', 'GBP', 'EUR']) {
+    await db.query(
+      `INSERT INTO calculator_currency_settings (currency_code, is_enabled, rate_mode)
+       VALUES (?, 1, 'automatic')
+       ON DUPLICATE KEY UPDATE currency_code = currency_code`,
+      [currencyCode]
+    );
+  }
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS calculator_schema_migrations (
+      migration_key VARCHAR(100) PRIMARY KEY,
+      applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const [seedMarkers] = await db.query(
+    'SELECT migration_key FROM calculator_schema_migrations WHERE migration_key = ? LIMIT 1',
+    ['calculator-default-seed-v1']
+  );
+
+  if (seedMarkers.length === 0) {
   // ── SEEDING PRODUCTS ──────────────────────────────────────────────────────────
   const products = [
     {
@@ -224,19 +254,12 @@ async function migrate() {
       INSERT INTO calculator_products (id, name, slug, unit_type, moq, min_product_cost, description, is_active)
       VALUES (?, ?, ?, ?, ?, ?, ?, 1)
       ON DUPLICATE KEY UPDATE
-        name = VALUES(name),
-        slug = VALUES(slug),
-        unit_type = VALUES(unit_type),
-        moq = VALUES(moq),
-        min_product_cost = VALUES(min_product_cost),
-        description = VALUES(description),
-        is_active = 1
+        updated_at = updated_at
     `, [p.id, p.name, p.slug, p.unit_type, p.moq, p.min_product_cost, p.description]);
   }
   console.log('✅ Seeded calculator products.');
 
   // ── SEEDING PRODUCT OPTIONS ──────────────────────────────────────────────────
-  await db.query(`DELETE FROM calculator_product_options_v2`);
   const options = [
     // Product 1 (Resin) Fill Sizes: 10g, 15g, 20g, 30g, 50g
     { product_id: 1, option_type: 'fill_size', label: '10g', numeric_value: 10, unit: 'g', fixed_price: null, is_default: false, sort_order: 1 },
@@ -261,6 +284,13 @@ async function migrate() {
   ];
 
   for (const opt of options) {
+    const [existingOptions] = await db.query(
+      `SELECT id FROM calculator_product_options_v2
+       WHERE product_id = ? AND option_type = ? AND label = ? LIMIT 1`,
+      [opt.product_id, opt.option_type, opt.label]
+    );
+    if (existingOptions.length > 0) continue;
+
     await db.query(`
       INSERT INTO calculator_product_options_v2
         (product_id, option_type, label, numeric_value, unit, fixed_price, is_default, is_active, sort_order)
@@ -310,20 +340,12 @@ async function migrate() {
         (id, name, code, type, moq, unit_price, capacity, dieline_url, is_active)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
       ON DUPLICATE KEY UPDATE
-        name = VALUES(name),
-        code = VALUES(code),
-        type = VALUES(type),
-        moq = VALUES(moq),
-        unit_price = VALUES(unit_price),
-        capacity = VALUES(capacity),
-        dieline_url = VALUES(dieline_url),
-        is_active = 1
+        updated_at = updated_at
     `, [pkg.id, pkg.name, pkg.code, pkg.type, pkg.moq, pkg.unit_price, pkg.capacity || null, pkg.dieline_url || null]);
   }
   console.log('✅ Seeded calculator packaging items.');
 
   // ── SEEDING PRICING TIERS ──────────────────────────────────────────────────
-  await db.query(`DELETE FROM calculator_pricing_tiers`);
 
   const tiers = [
     // 1. Product 1 (Gold Grade Shilajit Resin):
@@ -380,41 +402,44 @@ async function migrate() {
     { entity_type: 'packaging', entity_id: 15, min_quantity: 1001, max_quantity: 5000, rate: 10.00, is_open_ended: 0 },
     { entity_type: 'packaging', entity_id: 15, min_quantity: 5001, max_quantity: 10000, rate: 7.00, is_open_ended: 0 },
 
-    // 8. Packaging: Resin Tubes (id 16)
-    // 200–400: Rs.310
-    // 500–700: Rs.250
-    // 800–2,000*: Rs.210
-    // Note: Gaps (401-499, 701-799, >2000) are not in tiers, so require custom quotation per doc rules
-    { entity_type: 'packaging', entity_id: 16, min_quantity: 200, max_quantity: 400, rate: 310.00, is_open_ended: 0 },
-    { entity_type: 'packaging', entity_id: 16, min_quantity: 500, max_quantity: 700, rate: 250.00, is_open_ended: 0 },
-    { entity_type: 'packaging', entity_id: 16, min_quantity: 800, max_quantity: 2000, rate: 210.00, is_open_ended: 0 },
+    // Resin spoon tiers
+    { entity_type: 'packaging', entity_id: 8, min_quantity: 100, max_quantity: 200, rate: 50.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 8, min_quantity: 201, max_quantity: 1000, rate: 40.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 8, min_quantity: 1001, max_quantity: 5000, rate: 30.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 9, min_quantity: 100, max_quantity: 200, rate: 70.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 9, min_quantity: 201, max_quantity: 1000, rate: 60.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 9, min_quantity: 1001, max_quantity: 5000, rate: 55.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 10, min_quantity: 100, max_quantity: 200, rate: 100.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 10, min_quantity: 201, max_quantity: 1000, rate: 90.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 10, min_quantity: 1001, max_quantity: 5000, rate: 80.00, is_open_ended: 0 },
 
-    // 9. Packaging: Bleach Card Box (id 17)
-    // 200–499: Rs.60
-    // 500–1,000: Rs.40
-    // 1,001–5,000: Rs.30
-    // 5,001–10,000: Rs.22
-    // Capped at 10,000
-    { entity_type: 'packaging', entity_id: 17, min_quantity: 200, max_quantity: 499, rate: 60.00, is_open_ended: 0 },
-    { entity_type: 'packaging', entity_id: 17, min_quantity: 500, max_quantity: 1000, rate: 40.00, is_open_ended: 0 },
-    { entity_type: 'packaging', entity_id: 17, min_quantity: 1001, max_quantity: 5000, rate: 30.00, is_open_ended: 0 },
-    { entity_type: 'packaging', entity_id: 17, min_quantity: 5001, max_quantity: 10000, rate: 22.00, is_open_ended: 0 },
+    // Resin tubes
+    { entity_type: 'packaging', entity_id: 16, min_quantity: 200, max_quantity: 200, rate: 350.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 16, min_quantity: 201, max_quantity: 500, rate: 310.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 16, min_quantity: 501, max_quantity: 1000, rate: 250.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 16, min_quantity: 1001, max_quantity: 5000, rate: 200.00, is_open_ended: 0 },
 
-    // 10. Packaging: Resin Rigid Box (id 18)
-    // 100–300: Rs.350
-    // 301–499: Rs.300
-    // 500–999: Rs.250
-    // 1,000–2,999: Rs.200
-    // 3,000–5,000: Rs.160
-    // Capped at 5,000
-    { entity_type: 'packaging', entity_id: 18, min_quantity: 100, max_quantity: 300, rate: 350.00, is_open_ended: 0 },
-    { entity_type: 'packaging', entity_id: 18, min_quantity: 301, max_quantity: 499, rate: 300.00, is_open_ended: 0 },
-    { entity_type: 'packaging', entity_id: 18, min_quantity: 500, max_quantity: 999, rate: 250.00, is_open_ended: 0 },
-    { entity_type: 'packaging', entity_id: 18, min_quantity: 1000, max_quantity: 2999, rate: 200.00, is_open_ended: 0 },
-    { entity_type: 'packaging', entity_id: 18, min_quantity: 3000, max_quantity: 5000, rate: 160.00, is_open_ended: 0 }
+    // Bleached card boxes
+    { entity_type: 'packaging', entity_id: 17, min_quantity: 200, max_quantity: 200, rate: 90.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 17, min_quantity: 201, max_quantity: 500, rate: 70.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 17, min_quantity: 501, max_quantity: 1000, rate: 50.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 17, min_quantity: 1001, max_quantity: 5000, rate: 40.00, is_open_ended: 0 },
+
+    // Resin rigid boxes
+    { entity_type: 'packaging', entity_id: 18, min_quantity: 100, max_quantity: 200, rate: 380.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 18, min_quantity: 201, max_quantity: 500, rate: 320.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 18, min_quantity: 501, max_quantity: 1000, rate: 250.00, is_open_ended: 0 },
+    { entity_type: 'packaging', entity_id: 18, min_quantity: 1001, max_quantity: 5000, rate: 200.00, is_open_ended: 0 }
   ];
 
   for (const t of tiers) {
+    const [existingTiers] = await db.query(
+      `SELECT id FROM calculator_pricing_tiers
+       WHERE entity_type = ? AND entity_id = ? AND min_quantity = ? LIMIT 1`,
+      [t.entity_type, t.entity_id, t.min_quantity]
+    );
+    if (existingTiers.length > 0) continue;
+
     await db.query(`
       INSERT INTO calculator_pricing_tiers
         (entity_type, entity_id, min_quantity, max_quantity, rate, is_open_ended, is_active, pricing_version)
@@ -424,7 +449,6 @@ async function migrate() {
   console.log('✅ Seeded calculator pricing tiers.');
 
   // ── SEEDING PRODUCT PACKAGING RULES (COMPATIBILITY & ALTERNATIVES) ───────────
-  await db.query(`DELETE FROM calculator_product_packaging_rules`);
 
   const rules = [
     // Product 1 (Resin):
@@ -480,6 +504,15 @@ async function migrate() {
   ];
 
   for (const r of rules) {
+    const [existingRules] = await db.query(
+      `SELECT id FROM calculator_product_packaging_rules
+       WHERE product_id = ? AND packaging_id = ? AND component_type = ?
+         AND ((alternative_group = ?) OR (alternative_group IS NULL AND ? IS NULL))
+       LIMIT 1`,
+      [r.product_id, r.packaging_id, r.component_type, r.alternative_group, r.alternative_group]
+    );
+    if (existingRules.length > 0) continue;
+
     await db.query(`
       INSERT INTO calculator_product_packaging_rules
         (product_id, packaging_id, component_type, alternative_group, suggested_qty_rule, is_default, is_active)
@@ -487,6 +520,111 @@ async function migrate() {
     `, [r.product_id, r.packaging_id, r.component_type, r.alternative_group, r.suggested_qty_rule, r.is_default]);
   }
   console.log('✅ Seeded product packaging compatibility rules.');
+    await db.query(
+      'INSERT INTO calculator_schema_migrations (migration_key) VALUES (?)',
+      ['calculator-default-seed-v1']
+    );
+  }
+
+  const [pricingMigrationMarkers] = await db.query(
+    'SELECT migration_key FROM calculator_schema_migrations WHERE migration_key = ? LIMIT 1',
+    ['required-packaging-pricing-v1']
+  );
+  if (pricingMigrationMarkers.length === 0) {
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+      const requiredPackaging = [
+        { code: 'SPOON-HOOK', name: 'Silver Hook Spoon', type: 'spoon', moq: 100, weight: null, specs: null },
+        { code: 'SPOON-STICK', name: 'Golden Hook Spoon', type: 'spoon', moq: 100, weight: null, specs: null },
+        { code: 'SPOON-PREMIUM', name: 'Black Plasma Hook Spoon', type: 'spoon', moq: 100, weight: null, specs: null },
+        { code: 'BOX-TUBE-RESIN', name: 'Resin Tube', type: 'outer_box', moq: 200, weight: '40-70 g', specs: null },
+        { code: 'BOX-BLEACH-CARD', name: 'Bleached Card Box', type: 'outer_box', moq: 200, weight: '10-15 g', specs: 'Material: 350 GSM bleached card' },
+        { code: 'BOX-RIGID-RESIN', name: 'Resin Rigid Box', type: 'outer_box', moq: 100, weight: '80-140 g', specs: null }
+      ];
+      const requiredTiers = {
+        'SPOON-HOOK': [
+          [100, 200, 50], [201, 1000, 40], [1001, 5000, 30]
+        ],
+        'SPOON-STICK': [
+          [100, 200, 70], [201, 1000, 60], [1001, 5000, 55]
+        ],
+        'SPOON-PREMIUM': [
+          [100, 200, 100], [201, 1000, 90], [1001, 5000, 80]
+        ],
+        'BOX-TUBE-RESIN': [
+          [200, 200, 350], [201, 500, 310], [501, 1000, 250], [1001, 5000, 200]
+        ],
+        'BOX-BLEACH-CARD': [
+          [200, 200, 90], [201, 500, 70], [501, 1000, 50], [1001, 5000, 40]
+        ],
+        'BOX-RIGID-RESIN': [
+          [100, 200, 380], [201, 500, 320], [501, 1000, 250], [1001, 5000, 200]
+        ]
+      };
+
+      for (const item of requiredPackaging) {
+        const [packagingRows] = await connection.query(
+          'SELECT id FROM calculator_packaging_items WHERE code = ? LIMIT 1',
+          [item.code]
+        );
+        if (packagingRows.length === 0) {
+          throw new Error(`Required calculator packaging item is missing: ${item.code}`);
+        }
+        const packagingId = packagingRows[0].id;
+        await connection.query(
+          `UPDATE calculator_packaging_items
+           SET name = ?, type = ?, moq = ?, unit_price = NULL,
+               estimated_weight = ?, technical_specs = ?
+           WHERE id = ?`,
+          [item.name, item.type, item.moq, item.weight, item.specs, packagingId]
+        );
+
+        await connection.query(
+          `UPDATE calculator_pricing_tiers
+           SET is_active = 0
+           WHERE entity_type = 'packaging' AND entity_id = ? AND is_active = 1`,
+          [packagingId]
+        );
+
+        for (const [minQuantity, maxQuantity, rate] of requiredTiers[item.code]) {
+          const [existingTierRows] = await connection.query(
+            `SELECT id FROM calculator_pricing_tiers
+             WHERE entity_type = 'packaging' AND entity_id = ? AND min_quantity = ?
+             ORDER BY id ASC LIMIT 1`,
+            [packagingId, minQuantity]
+          );
+          if (existingTierRows.length > 0) {
+            await connection.query(
+              `UPDATE calculator_pricing_tiers
+               SET max_quantity = ?, rate = ?, is_open_ended = 0, is_active = 1,
+                   pricing_version = pricing_version + 1
+               WHERE id = ?`,
+              [maxQuantity, rate, existingTierRows[0].id]
+            );
+          } else {
+            await connection.query(
+              `INSERT INTO calculator_pricing_tiers
+                 (entity_type, entity_id, min_quantity, max_quantity, rate, is_open_ended, is_active, pricing_version)
+               VALUES ('packaging', ?, ?, ?, ?, 0, 1, 1)`,
+              [packagingId, minQuantity, maxQuantity, rate]
+            );
+          }
+        }
+      }
+
+      await connection.query(
+        'INSERT INTO calculator_schema_migrations (migration_key) VALUES (?)',
+        ['required-packaging-pricing-v1']
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
 
   console.log('🎉 Migration & Seed finished successfully!');
 }

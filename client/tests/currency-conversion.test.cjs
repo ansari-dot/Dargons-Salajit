@@ -21,7 +21,7 @@ new Function('exports', 'require', 'module', '__filename', '__dirname', compiled
   path.dirname(currencyPath)
 );
 
-const { formatAmount, setLivePkrRates } = currencyModule.exports;
+const { formatAmount, formatAmountWithRate, setLivePkrRates } = currencyModule.exports;
 
 test('formats used, remaining, and total packaging costs in selected currencies', () => {
   setLivePkrRates({ USD: 0.01, GBP: 0.02, EUR: 0.03 });
@@ -44,4 +44,11 @@ test('formats used, remaining, and total packaging costs in selected currencies'
       expectedAmounts
     );
   }
+});
+
+test('calculator exchange rate uses PKR per foreign currency unit', () => {
+  assert.equal(formatAmountWithRate(28000, 'USD', 280), '$100.00');
+  assert.equal(formatAmountWithRate(24000, 'GBP', 300), '£80.00');
+  assert.equal(formatAmountWithRate(1000, 'EUR', 250), '€4.00');
+  assert.equal(formatAmountWithRate(1000, 'PKR', 1), '₨1,000.00');
 });

@@ -52,6 +52,17 @@ export interface AdminPricingTier {
   pricing_version: number;
 }
 
+export interface AdminCalculatorCurrency {
+  code: string;
+  name: string;
+  isEnabled: boolean;
+  rateMode: 'base' | 'automatic' | 'manual';
+  ratePkrPerUnit: number;
+  rateSource: string;
+  rateUpdatedAt: string | null;
+  manualRatePkrPerUnit: number | null;
+}
+
 export const calculatorAdminApi = {
   getProducts: async (): Promise<AdminProduct[]> => {
     const res = await api.get('/calculator/admin/products');
@@ -102,5 +113,17 @@ export const calculatorAdminApi = {
 
   deletePricingTier: async (id: number): Promise<void> => {
     await api.delete(`/calculator/admin/pricing-tiers/${id}`);
+  },
+
+  getCalculatorCurrencies: async (): Promise<AdminCalculatorCurrency[]> => {
+    const res = await api.get('/calculator/admin/currencies');
+    return res.data.data;
+  },
+
+  updateCalculatorCurrency: async (
+    code: string,
+    data: { is_enabled: boolean; rate_mode: 'automatic' | 'manual'; manual_rate_pkr_per_unit?: number | null }
+  ): Promise<void> => {
+    await api.put(`/calculator/admin/currencies/${code}`, data);
   },
 };

@@ -330,3 +330,36 @@ CREATE TABLE IF NOT EXISTS calculator_requests (
   INDEX idx_calc_req_status (status),
   INDEX idx_calc_req_user (user_id)
 );
+
+-- 21. CERTIFICATIONS TABLE (Storefront certification records)
+CREATE TABLE IF NOT EXISTS certifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  issuer VARCHAR(255) NULL,
+  certificate_number VARCHAR(255) NULL,
+  description TEXT NULL,
+  image_url TEXT NULL,
+  document_url TEXT NULL,
+  issued_at DATE NULL,
+  expires_at DATE NULL,
+  display_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_certifications_active_order (is_active, display_order)
+);
+
+
+-- 22. TRADEMARKS TABLE (Storefront trademark records)
+CREATE TABLE IF NOT EXISTS trademarks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  subtitle VARCHAR(500) NULL,
+  image_url TEXT NULL,
+  document_url TEXT NULL,
+  display_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_trademarks_active_order (is_active, display_order)
+);

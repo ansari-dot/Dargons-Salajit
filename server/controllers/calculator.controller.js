@@ -5,6 +5,25 @@ const {
   getConfigurationByReference
 } = require('../services/calculator.service');
 const db = require('../config/db');
+const {
+  findOverlappingTier,
+  isOpenEndedValue,
+  validatePricingTier
+} = require('../services/calculatorPricingTierValidation');
+const {
+  CALCULATOR_CURRENCIES,
+  getCalculatorCurrencySettings
+} = require('../services/calculatorCurrency.service');
+
+const getTierOverlap = async (tier, excludedId) => {
+  const [existingTiers] = await db.query(
+    `SELECT id, min_quantity, max_quantity, is_open_ended, effective_from, effective_until
+     FROM calculator_pricing_tiers
+     WHERE entity_type = ? AND entity_id = ? AND is_active = 1`,
+    [tier.entityType, tier.entityId]
+  );
+  return findOverlappingTier({ ...tier, id: excludedId }, existingTiers);
+};
 
 const calculateCostController = async (req, res) => {
   try {
@@ -40,6 +59,81 @@ const getCalculatorOptionsController = async (req, res) => {
       message: error.message,
       success: false
     });
+  }
+};
+
+const getAdminCalculatorCurrenciesController = async (req, res) => {
+  try {
+    const currencies = await getCalculatorCurrencySettings();
+    return res.json({ success: true, data: currencies });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const updateAdminCalculatorCurrencyController = async (req, res) => {
+  try {
+    const code = String(req.params.code || '').trim().toUpperCase();
+    if (!CALCULATOR_CURRENCIES.some((currency) => currency.code === code)) {
+      return res.status(400).json({ success: false, message: 'Unsupported calculator currency.' });
+    }
+
+    const [rows] = await db.query(
+      'SELECT * FROM calculator_currency_settings WHERE currency_code = ? LIMIT 1',
+      [code]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Calculator currency configuration not found.' });
+    }
+
+    const current = rows[0];
+    if (
+      req.body.is_enabled !== undefined &&
+      ![true, false, 1, 0, '1', '0'].includes(req.body.is_enabled)
+    ) {
+      return res.status(400).json({ success: false, message: 'Enabled must be a boolean value.' });
+    }
+    const isEnabled = req.body.is_enabled === undefined
+      ? Boolean(current.is_enabled)
+      : req.body.is_enabled === true || req.body.is_enabled === 1 || req.body.is_enabled === '1';
+    if (code === 'PKR' && !isEnabled) {
+      return res.status(400).json({ success: false, message: 'PKR must remain enabled as the base currency.' });
+    }
+
+    if (code === 'PKR' && req.body.rate_mode && req.body.rate_mode !== 'automatic') {
+      return res.status(400).json({ success: false, message: 'PKR is the base currency and cannot use an exchange-rate override.' });
+    }
+    const rateMode = code === 'PKR'
+      ? 'automatic'
+      : (req.body.rate_mode === undefined ? current.rate_mode : req.body.rate_mode);
+    if (!['automatic', 'manual'].includes(rateMode)) {
+      return res.status(400).json({ success: false, message: 'Rate mode must be automatic or manual.' });
+    }
+
+    let manualRate = null;
+    if (rateMode === 'manual') {
+      manualRate = req.body.manual_rate_pkr_per_unit === undefined
+        ? Number(current.manual_rate_pkr_per_unit)
+        : Number(req.body.manual_rate_pkr_per_unit);
+      if (!Number.isFinite(manualRate) || manualRate <= 0) {
+        return res.status(400).json({ success: false, message: 'Manual exchange rate must be a positive number of PKR per currency unit.' });
+      }
+    }
+
+    await db.query(
+      `UPDATE calculator_currency_settings
+       SET is_enabled = ?, rate_mode = ?, manual_rate_pkr_per_unit = ?
+       WHERE currency_code = ?`,
+      [isEnabled ? 1 : 0, rateMode, manualRate, code]
+    );
+    const currencies = await getCalculatorCurrencySettings();
+    return res.json({
+      success: true,
+      message: `${code} calculator currency settings updated.`,
+      data: currencies.find((currency) => currency.code === code)
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -300,13 +394,39 @@ const createAdminPricingTierController = async (req, res) => {
       entity_type, entity_id, min_quantity, max_quantity, rate, estimated_weight,
       is_open_ended, effective_from, effective_until, pricing_version
     } = req.body;
+    const openEnded = isOpenEndedValue(is_open_ended);
+    const tier = {
+      entityType: entity_type,
+      entityId: entity_id,
+      minQuantity: min_quantity,
+      maxQuantity: openEnded ? null : max_quantity,
+      rate,
+      isOpenEnded: openEnded,
+      effectiveFrom: effective_from || null,
+      effectiveUntil: effective_until || null
+    };
+    const validationError = validatePricingTier(tier);
+    if (validationError) {
+      return res.status(400).json({ success: false, message: validationError });
+    }
+
+    const entityTable = entity_type === 'product' ? 'calculator_products' : 'calculator_packaging_items';
+    const [entityRows] = await db.query(`SELECT id FROM ${entityTable} WHERE id = ? LIMIT 1`, [entity_id]);
+    if (entityRows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Tier entity does not exist.' });
+    }
+
+    if (await getTierOverlap(tier)) {
+      return res.status(400).json({ success: false, message: 'This tier overlaps an active tier for the same item and date range.' });
+    }
+
     const [result] = await db.query(
       `INSERT INTO calculator_pricing_tiers
         (entity_type, entity_id, min_quantity, max_quantity, rate, estimated_weight, is_open_ended, is_active, effective_from, effective_until, pricing_version)
        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
       [
-        entity_type, entity_id, min_quantity, max_quantity ?? null, rate,
-        estimated_weight ?? null, is_open_ended ? 1 : 0, effective_from || null,
+        entity_type, entity_id, min_quantity, tier.maxQuantity, rate,
+        estimated_weight ?? null, openEnded ? 1 : 0, effective_from || null,
         effective_until || null, pricing_version || 1
       ]
     );
@@ -319,27 +439,58 @@ const createAdminPricingTierController = async (req, res) => {
 const updateAdminPricingTierController = async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      min_quantity, max_quantity, rate, estimated_weight,
-      is_open_ended, is_active, effective_from, effective_until, pricing_version
-    } = req.body;
+    const [rows] = await db.query('SELECT * FROM calculator_pricing_tiers WHERE id = ? LIMIT 1', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Pricing tier not found.' });
+    }
+
+    const current = rows[0];
+    const has = (field) => Object.prototype.hasOwnProperty.call(req.body, field);
     const hasEstimatedWeight = Object.prototype.hasOwnProperty.call(req.body, 'estimated_weight');
+    const openEnded = has('is_open_ended')
+      ? isOpenEndedValue(req.body.is_open_ended)
+      : Boolean(current.is_open_ended);
+    const tier = {
+      id: Number(id),
+      entityType: current.entity_type,
+      entityId: current.entity_id,
+      minQuantity: has('min_quantity') ? req.body.min_quantity : current.min_quantity,
+      maxQuantity: openEnded
+        ? null
+        : (has('max_quantity') ? req.body.max_quantity : current.max_quantity),
+      rate: has('rate') ? req.body.rate : current.rate,
+      isOpenEnded: openEnded,
+      effectiveFrom: has('effective_from') ? (req.body.effective_from || null) : current.effective_from,
+      effectiveUntil: has('effective_until') ? (req.body.effective_until || null) : current.effective_until
+    };
+    const validationError = validatePricingTier(tier);
+    if (validationError) {
+      return res.status(400).json({ success: false, message: validationError });
+    }
+
+    const isActive = has('is_active') ? Boolean(req.body.is_active) : Boolean(current.is_active);
+    if (isActive && await getTierOverlap(tier, id)) {
+      return res.status(400).json({ success: false, message: 'This tier overlaps an active tier for the same item and date range.' });
+    }
+
     await db.query(
       `UPDATE calculator_pricing_tiers
-       SET min_quantity = COALESCE(?, min_quantity),
+       SET min_quantity = ?,
            max_quantity = ?,
-           rate = COALESCE(?, rate),
+           rate = ?,
            estimated_weight = IF(?, ?, estimated_weight),
-           is_open_ended = COALESCE(?, is_open_ended),
-           is_active = COALESCE(?, is_active),
+           is_open_ended = ?,
+           is_active = ?,
            effective_from = ?,
            effective_until = ?,
-           pricing_version = COALESCE(?, pricing_version)
+           pricing_version = ?
        WHERE id = ?`,
       [
-        min_quantity, max_quantity !== undefined ? max_quantity : null, rate,
-        hasEstimatedWeight, estimated_weight ?? null, is_open_ended ? 1 : 0,
-        is_active, effective_from || null, effective_until || null, pricing_version, id
+        tier.minQuantity, tier.maxQuantity, tier.rate,
+        hasEstimatedWeight, req.body.estimated_weight ?? null,
+        openEnded ? 1 : 0, isActive ? 1 : 0,
+        tier.effectiveFrom, tier.effectiveUntil,
+        has('pricing_version') ? req.body.pricing_version : current.pricing_version, id
       ]
     );
     return res.json({ success: true, message: 'Pricing tier updated' });
@@ -361,6 +512,8 @@ const deleteAdminPricingTierController = async (req, res) => {
 module.exports = {
   calculateCostController,
   getCalculatorOptionsController,
+  getAdminCalculatorCurrenciesController,
+  updateAdminCalculatorCurrencyController,
   saveConfigurationController,
   getConfigurationByReferenceController,
   getAdminProductsController,

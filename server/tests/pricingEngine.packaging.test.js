@@ -14,7 +14,7 @@ const productTiers = [{
   pricing_version: 1
 }];
 
-const packagingTiers = [
+let packagingTiers = [
   { id: 2, min_quantity: 100, max_quantity: 499, rate: 60, is_open_ended: 0 },
   { id: 3, min_quantity: 500, max_quantity: 999, rate: 50, is_open_ended: 0 },
   { id: 4, min_quantity: 1000, max_quantity: 5000, rate: 40, is_open_ended: 0 }
@@ -69,6 +69,11 @@ const calculate = (finishedQuantity, purchasedQuantity, productId = 1) => Pricin
 beforeEach(() => {
   packagingName = 'Carton box';
   packagingType = 'box';
+  packagingTiers = [
+    { id: 2, min_quantity: 100, max_quantity: 499, rate: 60, is_open_ended: 0 },
+    { id: 3, min_quantity: 500, max_quantity: 999, rate: 50, is_open_ended: 0 },
+    { id: 4, min_quantity: 1000, max_quantity: 5000, rate: 40, is_open_ended: 0 }
+  ];
   mockDatabase();
 });
 afterEach(() => {
@@ -145,6 +150,37 @@ test('purchase above the highest configured slab redirects to quotation', async 
   assert.match(result.message, /quotation/i);
   assert.equal(item.purchasedQuantity, 6000);
   assert.equal(item.unitPrice, null);
+});
+
+test('invalid manual packaging quantities are rejected instead of rounded or defaulted', async () => {
+  for (const quantity of ['', 'text', 0, -1, 1.5, '1.5', Number.MAX_SAFE_INTEGER + 1]) {
+    await assert.rejects(
+      calculate(300, quantity),
+      /purchased quantity must be a positive whole number/i
+    );
+  }
+});
+
+test('bleached card box boundaries use their configured tier without interpolation', async () => {
+  packagingName = 'Bleached Card Box';
+  packagingTiers = [
+    { id: 10, min_quantity: 200, max_quantity: 200, rate: 90, is_open_ended: 0 },
+    { id: 11, min_quantity: 201, max_quantity: 500, rate: 70, is_open_ended: 0 },
+    { id: 12, min_quantity: 501, max_quantity: 1000, rate: 50, is_open_ended: 0 },
+    { id: 13, min_quantity: 1001, max_quantity: 5000, rate: 40, is_open_ended: 0 }
+  ];
+
+  for (const [quantity, rate] of [
+    [200, 90], [201, 70], [500, 70], [501, 50], [1000, 50], [1001, 40], [5000, 40]
+  ]) {
+    const result = await calculate(300, quantity);
+    assert.equal(result.pricingAvailable, true, `${quantity} pcs should be priced`);
+    assert.equal(result.packagingBreakdown[0].unitPrice, rate, `${quantity} pcs should use Rs. ${rate}`);
+  }
+
+  const unavailable = await calculate(300, 5001);
+  assert.equal(unavailable.pricingAvailable, false);
+  assert.equal(unavailable.packagingBreakdown[0].unitPrice, null);
 });
 
 test('jar, label, and insert weights are excluded from packaging weight estimates', async () => {

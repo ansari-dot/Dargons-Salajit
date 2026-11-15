@@ -458,9 +458,14 @@
   justify-content: center;
   overflow: hidden;
   color: #777b79;
+  padding: 3px;
+  border: 1px solid #e5e3d8;
+  border-radius: 7px;
+  background: #f7f6f0;
+  box-sizing: border-box;
 }
 .cost-calc-packaging-thumb img,
-.cost-calc-packaging-thumb svg { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.cost-calc-packaging-thumb svg { display: block; width: 100%; height: 100%; object-fit: contain; }
 
 .cost-calc-pkg-component__name { color: #3d4a1d; font-weight: 700; }
 .cost-calc-pkg-component__meta { color: #666; font-size: 0.62rem; }
@@ -613,6 +618,33 @@
   font-weight: 600;
   margin: 0;
   flex: 1;
+}
+
+.cost-calc-summary__currency {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  color: #fff;
+  font-size: 0.62rem;
+  min-width: 104px;
+}
+
+.cost-calc-summary__currency select {
+  max-width: 100%;
+  height: 28px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  color: #222;
+  font-size: 0.68rem;
+}
+
+.cost-calc-summary__currency small {
+  max-width: 200px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.52rem;
+  line-height: 1.3;
 }
 
 .cost-calc-summary__status { font-size: 0.62rem; opacity: 0.85; margin-right: 4px; }

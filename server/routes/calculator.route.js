@@ -6,6 +6,8 @@ const adminProtectedRoute = require('../middleware/admin.middleware');
 const {
   calculateCostController,
   getCalculatorOptionsController,
+  getAdminCalculatorCurrenciesController,
+  updateAdminCalculatorCurrencyController,
   saveConfigurationController,
   getConfigurationByReferenceController,
   getAdminProductsController,
@@ -45,5 +47,8 @@ router.get('/admin/pricing-tiers', getAdminPricingTiersController);
 router.post('/admin/pricing-tiers', createAdminPricingTierController);
 router.put('/admin/pricing-tiers/:id', updateAdminPricingTierController);
 router.delete('/admin/pricing-tiers/:id', deleteAdminPricingTierController);
+
+router.get('/admin/currencies', getAdminCalculatorCurrenciesController);
+router.put('/admin/currencies/:code', updateAdminCalculatorCurrencyController);
 
 module.exports = router;
