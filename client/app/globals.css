@@ -137,14 +137,26 @@ img {
 .header__logo {
   display: flex;
   align-items: center;
+  gap: 10px;
+  text-decoration: none;
 }
 
 .header__logo img {
-  height: 82px;
-  max-height: 90px;
+  height: 52px;
+  max-height: 58px;
   width: auto;
   object-fit: contain;
   transition: transform 0.25s ease;
+}
+
+.header__brand-name {
+  font-family: var(--font-primary);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #111111;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .header__menu {
@@ -1994,6 +2006,10 @@ img {
 }
 
 @media (max-width: 640px) {
+  .header__brand-name {
+    font-size: 0.95rem;
+  }
+
   .top-bar__right {
     display: none;
   }

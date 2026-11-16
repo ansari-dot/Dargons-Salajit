@@ -54,13 +54,14 @@ export default function Header() {
           </button>
           <Link href="/" className="header__logo">
             <Image
-              src="/logo.png"
-              alt="Palses Pure Wellness"
-              width={160}
-              height={82}
+              src="/dragon-logo.png"
+              alt="Dragon Shilajit"
+              width={52}
+              height={52}
               style={{ objectFit: 'contain' }}
               priority
             />
+            <span className="header__brand-name">Dragon Shilajit</span>
           </Link>
         </div>
 
