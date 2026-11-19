@@ -1,54 +1,67 @@
 const UserModel = require('../models/userModel');
-const AppError = require('../utils/AppErros');
+const bcrypt = require('bcryptjs');
 
+/** 
+ * Creates or escalates an admin account.
+ * Idempotent: if the email already exists, only the password + role are updated.
+ * Used once by initDb to bootstrap the store owner account.
+ */
+const createAdmin = async ({ email, password, firstName = 'Admin', lastName = '', phone = '', firstNameFallback = '', lastNameFallback = '' } = {}) => {
+  const trimmedEmail = String(email || '').trim();
+  if (!trimmedEmail) throw new Error('Admin email is required.');
 
-const getAllCustomer = async ({ role } = {}) => {
-  const customers = await UserModel.findAll();
+  // 1. Find or create the user
+  let user = await UserModel.findByEmail(trimmedEmail);
+  const isNewUser = !user;
 
-  if (role && typeof role === 'string' && role.trim()) {
-    const wanted = role.trim().toLowerCase();
-    return customers.filter(
-      (customer) => String(customer.role || 'customer').toLowerCase() === wanted
-    );
+  if (!isNewUser) {
+    // 2. Ensure password matches the requested one (idempotent re-login)
+    const existingHashed = user.password || '';
+    const passwordMatches = await bcrypt.compare(password, existingHashed);
+
+    if (!passwordMatches) {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      await UserModel.update(user.id, { password: hashedPassword });
+    }
+
+    // 3. Idempotent role escalation
+    if (String(user.role || 'customer').toLowerCase() !== 'admin') {
+      await UserModel.update(user.id, { role: 'admin' });
+    }
+
+    user = await UserModel.findById(user.id);
+  } else {
+    // 4. New user: build the payload (mirrors the schema's columns)
+    const fName = firstName || firstNameFallback || '';
+    const lName = lastName || lastNameFallback || '';
+    const phoneValue = phone || '';
+    const streetAddress = '';
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    await UserModel.create({
+      first_name: fName,
+      firstName: fName,
+      last_name: lName,
+      lastName: lName,
+      email: trimmedEmail,
+      phone: phoneValue,
+      street_address: streetAddress,
+      streetAddress: streetAddress,
+      city: '',
+      postal_code: '',
+      postcode: '',
+      password: hashedPassword,
+      role: 'admin',
+      email_verified: 1,
+    });
+
+    user = await UserModel.findByEmail(trimmedEmail);
   }
 
-  return customers;
-};
-
-const getCustomerById = async ({ userId } = {}) => {
-  if (!userId) {
-    throw new AppError('User ID is required.', 400);
-  }
-
-  const customer = await UserModel.findByIdWithStats(userId);
-  if (!customer) {
-    throw new AppError('User not found', 404);
-  }
-
-  return customer;
-};
-
-const DeleteUser = async ({ userId } = {}) => {
-  if (!userId) {
-    throw new AppError('User ID is required.', 400);
-  }
-
-  const user = await UserModel.findById(userId);
-  if (!user) {
-    throw new AppError('User not found', 404);
-  }
-
-  await UserModel.delete(userId);
   return user;
 };
 
-const getTotalUsers = async()=>{
-  return await UserModel.countAll()
-}
-
-module.exports = {
-  getAllCustomer,
-  getCustomerById,
-  DeleteUser,
-  getTotalUsers
-};
+module.exports = { createAdmin };

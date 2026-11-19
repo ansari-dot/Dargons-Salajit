@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   ShoppingBag,
+  ShoppingCart,
   Package,
   Users,
   Boxes,
@@ -43,6 +44,7 @@ interface NavItemConfig {
 const mainNavItems: NavItemConfig[] = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Orders', path: '/orders', icon: ShoppingBag, badge: 12 },
+  { name: 'Bulk Requests', path: '/bulk-requests', icon: ShoppingCart },
   { name: 'Quotations', path: '/quotations', icon: ScrollText },
   { name: 'Calculator Setup', path: '/calculator-setup', icon: Calculator },
   { name: 'Products', path: '/products', icon: Package },

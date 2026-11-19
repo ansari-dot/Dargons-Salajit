@@ -236,12 +236,87 @@ const initDb = async () => {
     try { await db.query(`UPDATE users SET postal_code = COALESCE(postal_code, postcode)`); } catch (e) { }
     try { await db.query(`UPDATE users SET postcode = COALESCE(postcode, postal_code)`); } catch (e) { }
 
+    // ── Packaging Items table ────────────────────────────────────────────────
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS packaging_items (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          description TEXT NULL,
+          price_pkr DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          image_url TEXT NULL,
+          is_active TINYINT(1) DEFAULT 1,
+          display_order INT DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+      const [pkgCount] = await db.query('SELECT COUNT(*) as count FROM packaging_items');
+      if (pkgCount[0].count === 0) {
+        await db.query(`
+          INSERT INTO packaging_items (name, description, price_pkr, display_order, is_active) VALUES
+          ('Premium Gift Box', 'Luxury branded gift box with ribbon', 350.00, 1, 1),
+          ('Eco Kraft Pouch', 'Recyclable kraft paper pouch with seal', 150.00, 2, 1),
+          ('Velvet Drawstring Bag', 'Soft velvet bag for premium gifting', 250.00, 3, 1),
+          ('Bubble Wrap Protection', 'Extra protective bubble wrap layer', 80.00, 4, 1)
+        `);
+        console.log('✨ Seeded default packaging items.');
+      }
+    } catch (e) {
+      console.warn('Packaging items table init warning:', e.message);
+    }
+
+    // ── Bulk order tiers table ───────────────────────────────────────────────
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS bulk_order_tiers (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          min_qty INT NOT NULL,
+          discount_pct DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+          label VARCHAR(100) NULL,
+          is_active TINYINT(1) DEFAULT 1
+        )
+      `);
+      const [tierCount] = await db.query('SELECT COUNT(*) as count FROM bulk_order_tiers');
+      if (tierCount[0].count === 0) {
+        await db.query(`
+          INSERT INTO bulk_order_tiers (min_qty, discount_pct, label) VALUES
+          (5,  5.00,  'Buy 5+ — Save 5%'),
+          (10, 10.00, 'Buy 10+ — Save 10%'),
+          (20, 15.00, 'Buy 20+ — Save 15%'),
+          (50, 20.00, 'Buy 50+ — Save 20%')
+        `);
+        console.log('✨ Seeded default bulk order tiers.');
+      }
+    } catch (e) {
+      console.warn('Bulk order tiers table init warning:', e.message);
+    }
+
     // Private Label Calculator schema & default seeds
     try {
       const migrateCalculator = require('../scripts/initCalculatorSchema.cjs');
       await migrateCalculator();
     } catch (e) {
       console.warn('⚠️ Calculator migration notice:', e.message);
+    }
+
+    // ── Bootstrap store owner (admin) account ───────────────────────────────
+    // Only used on a brand-new DB. Idempotent: if the email already exists,
+    // its password/role are aligned to the values below (safe to run repeatedly).
+    try {
+      const { createAdmin } = require('../services/admin.service');
+      await createAdmin({
+        email: 'yawarhussain793@gmail.com',
+        password: 'yawar123',
+        firstName: 'Yawar',
+        lastName: 'Hussain',
+        phone: '03445789763',
+        firstNameFallback: 'Admin',
+        lastNameFallback: 'Owner',
+      });
+      console.log('✅ Admin account created: yawarhussain793@gmail.com');
+    } catch (error) {
+      console.warn('⚠️  Admin bootstrap failed:', error.message);
     }
 
     console.log('✅ Database tables & schema migrations initialized successfully.');

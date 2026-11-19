@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppSelector } from '@/lib/redux/hooks';
+import { addToCart, addToCartDb } from '@/lib/redux/slices/cartSlice';
+import { useAppDispatch } from '@/lib/redux/hooks';
 import { formatAmountWithRate } from '@/lib/utils/currency';
 import { resolveBackendImageUrl } from '@/lib/utils/image';
 import { useToast } from '@/components/ui/Toast';
@@ -27,6 +30,18 @@ interface CalculatorCurrency {
   ratePkrPerUnit: number;
   rateSource: string;
   rateUpdatedAt: string | null;
+}
+
+interface CalculatorPricingTier {
+  id: number;
+  entity_type: 'product' | 'packaging';
+  entity_id: number;
+  min_quantity: number;
+  max_quantity: number | null;
+  rate: number;
+  is_open_ended: boolean | number;
+  effective_from?: string | null;
+  effective_until?: string | null;
 }
 
 const productImageById: Record<number, string> = {
@@ -372,7 +387,217 @@ interface BucketItem {
   packagingCostPerPurchasedUnit: number;
 }
 
+// ── Bulk quote form ──────────────────────────────────────────────────────────
+interface BulkQuoteItem {
+  productId: number;
+  productName: string;
+  quantity: number;
+  unit: string;
+  moq: number;
+}
+
+function BulkBuyPanel({
+  products,
+  productOptions,
+  pricingTiers,
+  currency,
+  rateMap,
+  isLoading,
+  onRequestQuote,
+}: {
+  products: ProductItem[];
+  productOptions: ProductOptionItem[];
+  pricingTiers: CalculatorPricingTier[];
+  currency: string;
+  rateMap: Record<string, number>;
+  isLoading: boolean;
+  onRequestQuote: (items: BulkQuoteItem[]) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [quantities, setQuantities] = useState<Record<number, number>>({});
+  const selectedItems = products.flatMap((product) => {
+    const quantity = quantities[product.id] || 0;
+    return quantity > 0 ? [{ product, quantity }] : [];
+  });
+  const rate = rateMap[currency] || 1;
+  const formatPrice = (amount: number) => formatAmountWithRate(amount, currency, rate);
+
+  const getProductTotal = (product: ProductItem, quantity: number): number | null => {
+    if (product.id === 1 || product.id === 2) {
+      const tier = pricingTiers.find((item) => {
+        if (item.entity_type !== 'product' || item.entity_id !== product.id) return false;
+        const inRange = quantity >= Number(item.min_quantity) &&
+          (item.max_quantity === null || quantity <= Number(item.max_quantity));
+        const isOpenEnded = item.is_open_ended === true || Number(item.is_open_ended) === 1;
+        return inRange && (isOpenEnded || item.max_quantity !== null);
+      });
+      return tier ? quantity * Number(tier.rate) : null;
+    }
+
+    const optionType = product.id === 3 ? 'strength' : 'fill_size';
+    const option = productOptions.find(
+      (item) => item.product_id === product.id && item.option_type === optionType && item.is_default
+    );
+    const unitPrice = option?.fixed_price;
+    return unitPrice === null || unitPrice === undefined ? null : quantity * Number(unitPrice);
+  };
+
+  const selectedTotals = selectedItems.map(({ product, quantity }) => ({
+    product,
+    quantity,
+    total: getProductTotal(product, quantity),
+  }));
+  const hasUnavailableTotal = selectedTotals.some((item) => item.total === null);
+  const overallTotal = hasUnavailableTotal
+    ? null
+    : selectedTotals.reduce((total, item) => total + (item.total || 0), 0);
+
+  const updateQuantity = (product: ProductItem, quantity: number) => {
+    const moq = Math.ceil(product.moq);
+    const value = Number.isFinite(quantity) && quantity > 0
+      ? Math.max(moq, Math.floor(quantity))
+      : 0;
+    setQuantities((current) => ({ ...current, [product.id]: value }));
+  };
+
+  return (
+    <div className="cc-bulk-wrap">
+      <button
+        type="button"
+        className="cc-bulk-toggle"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <span className="cc-bulk-toggle__icon" aria-hidden="true">🛒</span>
+        <span className="cc-bulk-toggle__copy">
+          <strong>Buy in bulk</strong>
+          <small>Choose products and quantities</small>
+        </span>
+        <span className={`cc-bulk-toggle__chevron${isOpen ? ' cc-bulk-toggle__chevron--open' : ''}`} aria-hidden="true" />
+      </button>
+
+      {isOpen && (
+        <section className="cc-bulk">
+          <div className="cc-bulk__head">
+            <div>
+              <h3 className="cc-bulk__title">Bulk order request</h3>
+              <p className="cc-bulk__sub">Choose quantities for any of these products.</p>
+            </div>
+            <span className="cc-bulk__badge">MOQ applies</span>
+          </div>
+
+          {isLoading ? (
+            <p className="cc-bulk__message">Loading products…</p>
+          ) : products.length === 0 ? (
+            <p className="cc-bulk__message">No products are currently available.</p>
+          ) : (
+            <>
+              <div className="cc-bulk__products" aria-label="Choose bulk order quantities">
+                {products.map((product) => {
+                  const quantity = quantities[product.id] || 0;
+                  const moq = Math.ceil(product.moq);
+                  return (
+                    <div className="cc-bulk__product" key={product.id}>
+                      <span className="cc-bulk__product-image">
+                        <img
+                          src={resolveBackendImageUrl(
+                            product.image_url || productImageById[product.id] || '/popular_gold_jar.png'
+                          )}
+                          alt=""
+                          loading="lazy"
+                        />
+                      </span>
+                      <div className="cc-bulk__product-details">
+                        <span className="cc-bulk__product-name">{product.name}</span>
+                        <span className="cc-bulk__product-moq">
+                          MOQ: {moq.toLocaleString()} {product.unit_type}
+                        </span>
+                      </div>
+                      <div className="cc-bulk__quantity-control">
+                        <button
+                          type="button"
+                          aria-label={`Decrease ${product.name} quantity`}
+                          disabled={quantity === 0}
+                          onClick={() => updateQuantity(product, quantity <= moq ? 0 : quantity - moq)}
+                        >
+                          −
+                        </button>
+                        <input
+                          className="cc-bulk__product-quantity"
+                          aria-label={`${product.name} quantity`}
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={quantity}
+                          onChange={(event) => updateQuantity(product, Number(event.target.value))}
+                        />
+                        <button
+                          type="button"
+                          aria-label={`Increase ${product.name} quantity`}
+                          onClick={() => updateQuantity(product, quantity + moq)}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {selectedTotals.length > 0 && (
+                <section className="cc-bulk__summary" aria-label="Bulk order totals">
+                  <h4 className="cc-bulk__summary-title">Order summary</h4>
+                  {selectedTotals.map(({ product, quantity, total }) => (
+                    <div className="cc-bulk__summary-row" key={product.id}>
+                      <span>
+                        {product.name}
+                        <small>{quantity.toLocaleString()} {product.unit_type}</small>
+                      </span>
+                      <strong>{total === null ? 'Quote required' : formatPrice(total)}</strong>
+                    </div>
+                  ))}
+                  <div className="cc-bulk__summary-total">
+                    <span>Estimated product total</span>
+                    <strong>{overallTotal === null ? 'Quote required' : formatPrice(overallTotal)}</strong>
+                  </div>
+                  <p className="cc-bulk__summary-note">
+                    Product estimate only; packaging and custom costs are not included.
+                  </p>
+                </section>
+              )}
+
+              <div className="cc-bulk__footer">
+                <span>
+                  {selectedItems.length === 0
+                    ? 'Select at least one product'
+                    : `${selectedItems.length} ${selectedItems.length === 1 ? 'product' : 'products'} selected`}
+                </span>
+                <button
+                  type="button"
+                  className="cc-bulk__quote-button"
+                  disabled={selectedItems.length === 0}
+                  onClick={() => onRequestQuote(selectedItems.map(({ product, quantity }) => ({
+                    productId: product.id,
+                    productName: product.name,
+                    quantity,
+                    unit: product.unit_type,
+                    moq: Math.ceil(product.moq),
+                  })))}
+                >
+                  Request bulk quote
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
 export default function CalculatorPage() {
+  const dispatch = useAppDispatch();
+  const router = useRouter();
   const [currency, setCurrency] = useState('PKR');
   const user = useAppSelector((state) => state.auth.user);
   const toast = useToast();
@@ -382,6 +607,7 @@ export default function CalculatorPage() {
   // ─────────────────────────────────────────────
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [productOptions, setProductOptions] = useState<ProductOptionItem[]>([]);
+  const [pricingTiers, setPricingTiers] = useState<CalculatorPricingTier[]>([]);
   const [rules, setRules] = useState<PackagingRule[]>([]);
   const [calculatorCurrencies, setCalculatorCurrencies] = useState<CalculatorCurrency[]>([]);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
@@ -432,6 +658,7 @@ export default function CalculatorPage() {
   const [quoteCustomerEmail, setQuoteCustomerEmail] = useState<string>('');
   const [quoteCustomerPhone, setQuoteCustomerPhone] = useState<string>('');
   const [quoteNotes, setQuoteNotes] = useState<string>('');
+  const [bulkQuoteItems, setBulkQuoteItems] = useState<BulkQuoteItem[]>([]);
   const [isSubmittingQuote, setIsSubmittingQuote] = useState<boolean>(false);
   const [quoteFeedback, setQuoteFeedback] = useState<string>('');
 
@@ -475,9 +702,16 @@ export default function CalculatorPage() {
         const res = await fetch(`${API_URL}/calculator/config`);
         const json = await res.json();
         if (res.ok && json.success) {
-          const { products: pList, options: oList, rules: rList, currencies: currencyList } = json.data;
+          const {
+            products: pList,
+            options: oList,
+            rules: rList,
+            tiers: tierList,
+            currencies: currencyList,
+          } = json.data;
           setProducts(pList || []);
           setProductOptions(oList || []);
+          setPricingTiers(Array.isArray(tierList) ? tierList : []);
           setRules(rList || []);
           const enabledCurrencies = Array.isArray(currencyList) ? currencyList : [];
           setCalculatorCurrencies(enabledCurrencies);
@@ -545,8 +779,6 @@ export default function CalculatorPage() {
   );
 
   const activeRules = rules.filter((r) => r.product_id === productId);
-  const packagingTableRows: PackagingBreakdownItem[] =
-    result?.packagingBreakdown || unavailablePackagingBreakdown;
 
   // Group alternative packaging choices
   const alternativeGroups: Record<string, PackagingRule[]> = {};
@@ -587,6 +819,115 @@ export default function CalculatorPage() {
     return ids;
   };
 
+  const fallbackPackagingRows: PackagingBreakdownItem[] = getSelectedPackagingIds()
+    .map((packagingId) => activeRules.find((rule) => rule.packaging_id === packagingId))
+    .filter((rule): rule is PackagingRule => Boolean(rule))
+    .map((rule) => {
+      const moq = Math.max(1, Math.ceil(Number(rule.moq) || 200));
+      const rawPurchasedQuantity = purchasedQuantities[rule.packaging_id] ?? String(moq);
+      const parsedPurchasedQuantity = Number(rawPurchasedQuantity);
+      const purchasedQuantity = Number.isSafeInteger(parsedPurchasedQuantity) && parsedPurchasedQuantity >= 0
+        ? parsedPurchasedQuantity
+        : 0;
+      const matchedTier = rule.unit_price === null || rule.unit_price === undefined
+        ? pricingTiers.find((tier) => {
+          if (tier.entity_type !== 'packaging' || tier.entity_id !== rule.packaging_id) return false;
+          const minQuantity = Number(tier.min_quantity);
+          const isOpenEnded = tier.is_open_ended === true || Number(tier.is_open_ended) === 1;
+          return purchasedQuantity >= minQuantity &&
+            (isOpenEnded || (tier.max_quantity !== null && purchasedQuantity <= Number(tier.max_quantity)));
+        })
+        : undefined;
+      const unitPrice = rule.unit_price !== null && rule.unit_price !== undefined
+        ? Number(rule.unit_price)
+        : matchedTier ? Number(matchedTier.rate) : null;
+
+      return {
+        packagingId: rule.packaging_id,
+        name: rule.packaging_name,
+        code: rule.packaging_code,
+        type: rule.packaging_type,
+        alternativeGroup: rule.alternative_group,
+        imageUrl: rule.image_url,
+        moq,
+        suggestedQuantity: 0,
+        requiredQuantity: 0,
+        purchasedQuantity,
+        usedQuantity: 0,
+        remainingQuantity: purchasedQuantity,
+        shortBy: 0,
+        weightMinG: null,
+        weightMaxG: null,
+        weightExcludedFromEstimate: false,
+        technicalSpecs: rule.technical_specs,
+        unitPrice,
+        totalCost: unitPrice === null ? null : unitPrice * purchasedQuantity,
+        usedCost: 0,
+        remainingCost: unitPrice === null ? null : unitPrice * purchasedQuantity,
+        pricingTier: matchedTier ? {
+          minQuantity: Number(matchedTier.min_quantity),
+          maxQuantity: matchedTier.max_quantity === null ? null : Number(matchedTier.max_quantity),
+          isOpenEnded: matchedTier.is_open_ended === true || Number(matchedTier.is_open_ended) === 1,
+          rate: Number(matchedTier.rate),
+        } : null,
+        nextCheaperTier: null,
+        dielineUrl: rule.dieline_url,
+        capacity: rule.capacity,
+      };
+    });
+
+  const packagingTableRows: PackagingBreakdownItem[] =
+    result?.packagingBreakdown?.length
+      ? result.packagingBreakdown
+      : unavailablePackagingBreakdown.length
+        ? unavailablePackagingBreakdown
+        : fallbackPackagingRows;
+  const isZeroQuantity = Number(finishedQty) === 0;
+  const zeroQuantityHasUnpricedPackaging = packagingTableRows.some((item) => item.totalCost === null);
+  const zeroQuantityPackagingCost = zeroQuantityHasUnpricedPackaging
+    ? null
+    : packagingTableRows.reduce((total, item) => total + (item.totalCost || 0), 0);
+  const zeroQuantityPurchasedUnits = packagingTableRows.reduce(
+    (total, item) => total + item.purchasedQuantity,
+    0
+  );
+  const zeroQuantitySummary = {
+    filledProductCost: 0,
+    packagingInventoryCost: zeroQuantityPackagingCost,
+    packagingUsedCost: 0,
+    packagingRemainingCost: zeroQuantityPackagingCost,
+    printingCost: toNumber(printingCost),
+    setupCost: toNumber(setupCost),
+    otherCosts: toNumber(otherCosts),
+    shipping: toNumber(shipping),
+    discounts: toNumber(discounts),
+    estimatedProjectCost: zeroQuantityPackagingCost === null
+      ? null
+      : Math.max(
+        0,
+        zeroQuantityPackagingCost +
+          toNumber(printingCost) +
+          toNumber(setupCost) +
+          toNumber(otherCosts) +
+          toNumber(shipping) -
+          toNumber(discounts)
+      ),
+    filledProductCostPerUnit: null,
+    packagingCostPerPurchasedUnit: zeroQuantityPackagingCost === null
+      ? null
+      : zeroQuantityPurchasedUnits > 0
+        ? zeroQuantityPackagingCost / zeroQuantityPurchasedUnits
+        : 0,
+    totalPackagingWeightMinG: null,
+    totalPackagingWeightMaxG: null,
+  };
+  const summary = result?.summary || (isZeroQuantity ? zeroQuantitySummary : null);
+  const summaryPackagingBreakdown: PackagingBreakdownItem[] = result
+    ? result.packagingBreakdown
+    : isZeroQuantity ? packagingTableRows : [];
+  const formatSummaryAmount = (amount: number | null) =>
+    amount === null ? 'Quote required' : formatAmount(amount, currency);
+
   const getInvalidPackagingPurchase = () => {
     const selectedIds = new Set(getSelectedPackagingIds().map(String));
     for (const [packagingId, rawQuantity] of Object.entries(purchasedQuantities)) {
@@ -603,13 +944,18 @@ export default function CalculatorPage() {
 
   // Build payload for authoritative backend calculation
   const buildPayload = () => {
-    const selectedIds = new Set(getSelectedPackagingIds());
+    const selectedIds = getSelectedPackagingIds();
     const packagingPurchasesNumeric: Record<number, string> = {};
-    for (const [pkgId, qtyStr] of Object.entries(purchasedQuantities)) {
-      if (selectedIds.has(Number(pkgId))) {
-        packagingPurchasesNumeric[Number(pkgId)] = qtyStr;
-      }
-    }
+    const isZeroQuantity = toNumber(finishedQty) === 0;
+    selectedIds.forEach((packagingId) => {
+      const enteredQuantity = purchasedQuantities[packagingId];
+      const packagingRule = activeRules.find((rule) => rule.packaging_id === packagingId);
+      const quantity = enteredQuantity ??
+        (isZeroQuantity && packagingRule
+          ? String(Math.max(1, Math.ceil(Number(packagingRule.moq) || 200)))
+          : undefined);
+      if (quantity !== undefined) packagingPurchasesNumeric[packagingId] = quantity;
+    });
 
     return {
       productId,
@@ -636,8 +982,16 @@ export default function CalculatorPage() {
       toast.error('Select a product to calculate costs.', 'Calculation failed');
       return;
     }
-    if (!Number.isInteger(quantity) || quantity <= 0) {
+    if (!Number.isInteger(quantity) || quantity < 0) {
       toast.error('Finished quantity must be a positive whole number.', 'Calculation failed');
+      return;
+    }
+    if (quantity === 0) {
+      requestSeq.current++;
+      setResult(null);
+      setUnavailablePackagingBreakdown([]);
+      setPricingUnavailableMsg('');
+      setIsCalculating(false);
       return;
     }
     const invalidPackaging = getInvalidPackagingPurchase();
@@ -880,16 +1234,27 @@ export default function CalculatorPage() {
     setShowEstimateModal(true);
   };
 
-  const openQuoteModal = () => {
+  const prepareQuoteModal = (bulkItems: BulkQuoteItem[] = []) => {
     setQuoteFeedback('');
+    setBulkQuoteItems(bulkItems);
     setQuoteCustomerName(user ? `${(user as any).first_name || (user as any).firstName || ''} ${(user as any).last_name || (user as any).lastName || ''}`.trim() : '');
     setQuoteCustomerEmail(user?.email || '');
     setQuoteCustomerPhone(user?.phone || '');
     setShowQuoteModal(true);
   };
 
+  const openQuoteModal = () => prepareQuoteModal();
+  const openBulkQuoteModal = (items: BulkQuoteItem[]) => prepareQuoteModal(items);
+
   const handleSubmitQuote = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (Number(finishedQty) === 0) {
+      const invalidPackaging = getInvalidPackagingPurchase();
+      if (invalidPackaging) {
+        setQuoteFeedback(`${invalidPackaging} purchased quantity must be a positive whole number.`);
+        return;
+      }
+    }
     setIsSubmittingQuote(true);
     setQuoteFeedback('');
 
@@ -909,7 +1274,14 @@ export default function CalculatorPage() {
             strength,
             bottleSize,
             finishedQuantity: finishedQty,
-            notes: quoteNotes,
+            packagingOnly: Number(finishedQty) === 0 && bulkQuoteItems.length === 0,
+            notes: [
+              quoteNotes,
+              ...(bulkQuoteItems.length > 0
+                ? [`Bulk order: ${bulkQuoteItems.map((item) => `${item.productName} — ${item.quantity.toLocaleString()} ${item.unit} (MOQ ${item.moq.toLocaleString()})`).join('; ')}`]
+                : []),
+            ].filter(Boolean).join('\n'),
+            bulkOrderItems: bulkQuoteItems,
           },
         }),
       });
@@ -1005,7 +1377,7 @@ export default function CalculatorPage() {
                     <input
                       id="cc-finished-qty"
                       type="number"
-                      min={1}
+                      min={0}
                       className="cost-calc-field__input"
                       value={finishedQty}
                       onChange={(e) => setFinishedQty(e.target.value)}
@@ -1160,6 +1532,16 @@ export default function CalculatorPage() {
                   </div>
                 )}
               </div>
+
+              <BulkBuyPanel
+                products={products}
+                productOptions={productOptions}
+                pricingTiers={pricingTiers}
+                currency={currency}
+                rateMap={Object.fromEntries(calculatorCurrencies.map(c => [c.code, c.ratePkrPerUnit]))}
+                isLoading={isLoadingConfig}
+                onRequestQuote={openBulkQuoteModal}
+              />
             </div>
 
             {/* Step 2: Compatible Packaging Selection */}
@@ -1232,6 +1614,23 @@ export default function CalculatorPage() {
                   </h2>
                 </div>
               </div>
+
+              {!result && (
+                <div className="cost-calc-note" role="status">
+                  <div className="cost-calc-note__item cost-calc-note__item--muted">
+                    <span className="cost-calc-note__badge cost-calc-note__badge--muted">i</span>
+                    <span>
+                      You can still choose and purchase packaging, including spoons, when the product quantity is 0 or product pricing is unavailable.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {packagingTableRows.length === 0 && (
+                <p className="cost-calc-remaining__empty">
+                  No packaging items are configured for this product.
+                </p>
+              )}
 
               {/* Packaging Breakdown Table (Desktop) */}
               {packagingTableRows.length > 0 && (
@@ -1515,25 +1914,31 @@ export default function CalculatorPage() {
                   type="button"
                   className="cost-calc-btn cost-calc-btn--primary"
                   onClick={handleCalculate}
-                  disabled={isCalculating}
+                  disabled={isCalculating || !Number.isInteger(Number(finishedQty)) || Number(finishedQty) <= 0}
                 >
-                  {isCalculating ? 'Updating Calculations…' : 'Recalculate Estimate'}
+                  {isCalculating
+                    ? 'Updating Calculations…'
+                    : Number(finishedQty) === 0
+                      ? 'Enter Quantity to Calculate'
+                      : 'Recalculate Estimate'}
                 </button>
               </div>
             </div>
 
             {/* Custom Quotation Trigger */}
-            {pricingUnavailableMsg && (
+            {(pricingUnavailableMsg || Number(finishedQty) === 0) && (
               <div className="cost-calc-quote-notice">
                 <p>
-                  {pricingUnavailableMsg}
+                  {Number(finishedQty) === 0
+                    ? 'Product quantity is zero. You can still request a quote for the packaging items selected above.'
+                    : pricingUnavailableMsg}
                 </p>
                 <button
                   type="button"
                   className="cost-calc-btn cost-calc-btn--dark"
                   onClick={openQuoteModal}
                 >
-                  REQUEST CUSTOM QUOTATION
+                  {Number(finishedQty) === 0 ? 'REQUEST PACKAGING QUOTATION' : 'REQUEST CUSTOM QUOTATION'}
                 </button>
               </div>
             )}
@@ -1577,79 +1982,89 @@ export default function CalculatorPage() {
                 className={`cost-calc-summary__badge ${
                   isCalculating
                     ? 'cost-calc-summary__badge--busy'
-                    : result
+                    : result || isZeroQuantity
                     ? 'cost-calc-summary__badge--live'
                     : 'cost-calc-summary__badge--idle'
                 }`}
               >
-                {isCalculating ? 'Calculating…' : result ? 'Live Estimate' : 'Awaiting Input'}
+                {isCalculating
+                  ? 'Calculating…'
+                  : result
+                    ? 'Live Estimate'
+                    : isZeroQuantity
+                      ? 'Packaging Estimate'
+                      : 'Awaiting Input'}
               </span>
             </div>
 
-            {!result && !pricingUnavailableMsg && (
+            {!summary && !pricingUnavailableMsg && (
               <div className="cost-calc-summary__empty" style={{ textAlign: 'center', padding: '24px 0' }}>
                 <p style={{ fontWeight: 700, color: '#333', fontSize: '0.95rem' }}>
-                  Enter quantity &amp; configuration
+                  {Number(finishedQty) === 0
+                    ? 'Packaging is available with zero product quantity'
+                    : 'Enter quantity & configuration'}
                 </p>
                 <p style={{ fontSize: '0.8rem', color: '#777', marginTop: '6px' }}>
-                  Backend calculations are authoritative and update automatically.
+                  {Number(finishedQty) === 0
+                    ? 'Set a positive product quantity to calculate the full project estimate.'
+                    : 'Backend calculations are authoritative and update automatically.'}
                 </p>
               </div>
             )}
 
-            {result && (
+            {summary && (
               <>
                 <div className="cost-calc-summary__rows">
                   <div className="cost-calc-summary__row">
                     <span>Filled Product Cost</span>
-                    <span>{formatAmount(result.summary.filledProductCost, currency)}</span>
+                    <span>{formatSummaryAmount(summary.filledProductCost)}</span>
                   </div>
 
                   <div className="cost-calc-summary__row">
                     <span>Packaging Cost (all purchased)</span>
-                    <span>{formatAmount(result.summary.packagingInventoryCost, currency)}</span>
+                    <span>{formatSummaryAmount(summary.packagingInventoryCost)}</span>
                   </div>
                   <div className="cost-calc-summary__row">
                     <span>Packaging used for this order</span>
-                    <span>{formatAmount(result.summary.packagingUsedCost, currency)}</span>
+                    <span>{formatSummaryAmount(summary.packagingUsedCost)}</span>
                   </div>
                   <div className="cost-calc-summary__row">
                     <span>Packaging remaining</span>
-                    <span>{formatAmount(result.summary.packagingRemainingCost, currency)}</span>
+                    <span>{formatSummaryAmount(summary.packagingRemainingCost)}</span>
                   </div>
 
-                  {result.summary.printingCost > 0 && (
+                  {summary.printingCost > 0 && (
                     <div className="cost-calc-summary__row">
                       <span>Printing Cost</span>
-                      <span>{formatAmount(result.summary.printingCost, currency)}</span>
+                      <span>{formatSummaryAmount(summary.printingCost)}</span>
                     </div>
                   )}
 
-                  {result.summary.setupCost > 0 && (
+                  {summary.setupCost > 0 && (
                     <div className="cost-calc-summary__row">
                       <span>Setup Cost</span>
-                      <span>{formatAmount(result.summary.setupCost, currency)}</span>
+                      <span>{formatSummaryAmount(summary.setupCost)}</span>
                     </div>
                   )}
 
-                  {result.summary.otherCosts > 0 && (
+                  {summary.otherCosts > 0 && (
                     <div className="cost-calc-summary__row">
                       <span>Other Costs</span>
-                      <span>{formatAmount(result.summary.otherCosts, currency)}</span>
+                      <span>{formatSummaryAmount(summary.otherCosts)}</span>
                     </div>
                   )}
 
-                  {result.summary.shipping > 0 && (
+                  {summary.shipping > 0 && (
                     <div className="cost-calc-summary__row">
                       <span>Shipping</span>
-                      <span>{formatAmount(result.summary.shipping, currency)}</span>
+                      <span>{formatSummaryAmount(summary.shipping)}</span>
                     </div>
                   )}
 
-                  {result.summary.discounts > 0 && (
+                  {summary.discounts > 0 && (
                     <div className="cost-calc-summary__row" style={{ color: '#27ae60' }}>
                       <span>Discounts</span>
-                      <span>− {formatAmount(result.summary.discounts, currency)}</span>
+                      <span>− {formatSummaryAmount(summary.discounts)}</span>
                     </div>
                   )}
                 </div>
@@ -1657,30 +2072,38 @@ export default function CalculatorPage() {
                 {/* Master Formula Grand Total */}
                 <div className="cost-calc-summary__total">
                   <span>Estimated Project Cost</span>
-                  <span>{formatAmount(result.summary.estimatedProjectCost, currency)}</span>
+                  <span>{formatSummaryAmount(summary.estimatedProjectCost)}</span>
                 </div>
 
                 {/* Per Unit Metrics */}
                 <div className="cost-calc-summary__metrics">
                   <div className="cost-calc-summary__metrics-row">
                     <span>Filled Product Cost / Unit:</span>
-                    <strong>{formatAmount(result.summary.filledProductCostPerUnit, currency)}</strong>
+                    <strong>
+                      {summary.filledProductCostPerUnit === null
+                        ? '—'
+                        : formatSummaryAmount(summary.filledProductCostPerUnit)}
+                    </strong>
                   </div>
                   <div className="cost-calc-summary__metrics-row">
                     <span>Packaging Cost / Purchased Unit:</span>
-                    <strong>{formatAmount(result.summary.packagingCostPerPurchasedUnit, currency)}</strong>
+                    <strong>{formatSummaryAmount(summary.packagingCostPerPurchasedUnit)}</strong>
                   </div>
                 </div>
 
                 <section className="cost-calc-remaining">
                   <h3>Remaining Packaging</h3>
                   <p className="cost-calc-remaining__intro">
-                    Surplus pieces are delivered with this order and kept for future batches.
+                    {isZeroQuantity
+                      ? 'All purchased pieces remain unused until product quantity is added.'
+                      : 'Surplus pieces are delivered with this order and kept for future batches.'}
                   </p>
-                  {result.packagingBreakdown.filter((item: PackagingBreakdownItem) => item.remainingQuantity > 0).length === 0 ? (
-                    <p className="cost-calc-remaining__empty">No remaining packaging for this order.</p>
+                  {summaryPackagingBreakdown.filter((item: PackagingBreakdownItem) => item.remainingQuantity > 0).length === 0 ? (
+                    <p className="cost-calc-remaining__empty">
+                      {isZeroQuantity ? 'No packaging selected yet.' : 'No remaining packaging for this order.'}
+                    </p>
                   ) : (
-                    result.packagingBreakdown
+                    summaryPackagingBreakdown
                       .filter((item: PackagingBreakdownItem) => item.remainingQuantity > 0)
                       .map((item: PackagingBreakdownItem) => {
                         const hasWeight = !item.weightExcludedFromEstimate && item.weightMinG !== null && item.weightMaxG !== null;
@@ -1693,15 +2116,15 @@ export default function CalculatorPage() {
                         return (
                           <div className="cost-calc-remaining__item" key={`remaining-${item.packagingId}`}>
                             <strong>{item.name}</strong>
-                            <span>{item.remainingQuantity.toLocaleString()} pcs · {formatAmount(item.remainingCost, currency)}</span>
+                            <span>{item.remainingQuantity.toLocaleString()} pcs · {formatSummaryAmount(item.remainingCost)}</span>
                             <small>Estimated weight: {weightText}</small>
                           </div>
                         );
                       })
                   )}
-                  {result.summary.totalPackagingWeightMinG !== null && result.summary.totalPackagingWeightMaxG !== null && (
+                  {summary.totalPackagingWeightMinG !== null && summary.totalPackagingWeightMaxG !== null && (
                     <p className="cost-calc-remaining__weight">
-                      Estimated packaging weight (purchased): {result.summary.totalPackagingWeightMinG.toLocaleString()}–{result.summary.totalPackagingWeightMaxG.toLocaleString()} g
+                      Estimated packaging weight (purchased): {summary.totalPackagingWeightMinG.toLocaleString()}–{summary.totalPackagingWeightMaxG.toLocaleString()} g
                     </p>
                   )}
                   <p className="cost-calc-remaining__disclaimer">
@@ -1710,7 +2133,8 @@ export default function CalculatorPage() {
                 </section>
 
                 {/* Action Buttons */}
-                <div className="cost-calc-summary__actions">
+                {result && (
+                  <div className="cost-calc-summary__actions">
                   <button
                     type="button"
                     className="cost-calc-btn cost-calc-btn--primary cost-calc-btn--block"
@@ -1737,7 +2161,20 @@ export default function CalculatorPage() {
                   >
                     REQUEST A QUOTATION
                   </button>
-                </div>
+                  </div>
+                )}
+                {isZeroQuantity && !result && (
+                  <div className="cost-calc-summary__actions">
+                    <button
+                      type="button"
+                      className="cost-calc-btn cost-calc-btn--dark cost-calc-btn--block"
+                      onClick={openQuoteModal}
+                      disabled={isCalculating}
+                    >
+                      REQUEST PACKAGING QUOTATION
+                    </button>
+                  </div>
+                )}
               </>
             )}
 
@@ -1746,8 +2183,11 @@ export default function CalculatorPage() {
                 <circle cx="12" cy="12" r="9" />
                 <path d="M12 11v5M12 8h.01" />
               </svg>
-              Backend calculations are authoritative.
+              {isZeroQuantity
+                ? 'Product cost is zero. Packaging and additional costs are shown from your current selections.'
+                : 'Backend calculations are authoritative.'}
             </p>
+
           </aside>
         </div>
       </div>
@@ -2023,60 +2463,84 @@ export default function CalculatorPage() {
             >
               ✕
             </button>
+            <div className={`cost-calc-quote-header${bulkQuoteItems.length > 0 ? ' cost-calc-quote-header--bulk' : ''}`}>
+              <span className="cost-calc-quote-header__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M7 3.75h7l4 4v12.5H7a2 2 0 0 1-2-2v-12.5a2 2 0 0 1 2-2Z" />
+                  <path d="M14 3.75v4h4M8.5 12h7M8.5 15.5h7" strokeLinecap="round" />
+                </svg>
+              </span>
+              <div className="cost-calc-quote-header__copy">
+                <span className="cost-calc-quote-header__eyebrow">
+                  {bulkQuoteItems.length > 0
+                    ? 'BULK ORDER REQUEST'
+                    : Number(finishedQty) === 0
+                      ? 'PACKAGING REQUEST'
+                      : 'PRIVATE LABEL'}
+                </span>
+                <h2 className="cost-calc-quote-header__title">
+                  {bulkQuoteItems.length > 0
+                    ? 'Request a Bulk Quote'
+                    : Number(finishedQty) === 0
+                      ? 'Request a Packaging Quote'
+                      : 'Request a Custom Quotation'}
+                </h2>
+                <p className="cost-calc-quote-header__description">
+                  {bulkQuoteItems.length > 0
+                    ? 'Your selected products and quantities will be attached to the request. Our team will review it and get back within 24 hours.'
+                    : Number(finishedQty) === 0
+                      ? 'Your selected packaging items and requested quantities will be attached. Our team will confirm pricing and get back within 24 hours.'
+                      : 'Your product and packaging configuration will be attached with your request. Our private-label specialists will review and get back within 24 hours.'}
+                </p>
+              </div>
+            </div>
 
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#2b3310', marginBottom: '6px' }}>
-              Request a Custom Quotation
-            </h2>
-            <p style={{ fontSize: '0.84rem', color: '#666', marginBottom: '20px' }}>
-              Your product and packaging configuration will be attached with your request. Our private-label specialists will review and get back within 24 hours.
-            </p>
-
-            <form onSubmit={handleSubmitQuote}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label className="cost-calc-field__label">Full Name *</label>
+            <form className="cost-calc-quote-form" onSubmit={handleSubmitQuote}>
+              <div className="cost-calc-quote-form__fields">
+                <div className="cost-calc-quote-form__field">
+                  <label className="cost-calc-quote-form__label" htmlFor="quote-customer-name">Full Name *</label>
                   <input
+                    id="quote-customer-name"
                     type="text"
                     required
-                    className="cost-calc-field__input"
-                    style={{ border: '1.5px solid #dedcd5', borderRadius: '8px' }}
+                    className="cost-calc-quote-form__input"
                     placeholder="Enter your name"
                     value={quoteCustomerName}
                     onChange={(e) => setQuoteCustomerName(e.target.value)}
                   />
                 </div>
 
-                <div>
-                  <label className="cost-calc-field__label">Email Address *</label>
+                <div className="cost-calc-quote-form__field">
+                  <label className="cost-calc-quote-form__label" htmlFor="quote-customer-email">Email Address *</label>
                   <input
+                    id="quote-customer-email"
                     type="email"
                     required
-                    className="cost-calc-field__input"
-                    style={{ border: '1.5px solid #dedcd5', borderRadius: '8px' }}
+                    className="cost-calc-quote-form__input"
                     placeholder="name@company.com"
                     value={quoteCustomerEmail}
                     onChange={(e) => setQuoteCustomerEmail(e.target.value)}
                   />
                 </div>
 
-                <div>
-                  <label className="cost-calc-field__label">Phone / WhatsApp</label>
+                <div className="cost-calc-quote-form__field">
+                  <label className="cost-calc-quote-form__label" htmlFor="quote-customer-phone">Phone / WhatsApp</label>
                   <input
-                    type="text"
-                    className="cost-calc-field__input"
-                    style={{ border: '1.5px solid #dedcd5', borderRadius: '8px' }}
+                    id="quote-customer-phone"
+                    type="tel"
+                    className="cost-calc-quote-form__input"
                     placeholder="+92 300 1234567"
                     value={quoteCustomerPhone}
                     onChange={(e) => setQuoteCustomerPhone(e.target.value)}
                   />
                 </div>
 
-                <div>
-                  <label className="cost-calc-field__label">Project Notes / Specifications</label>
+                <div className="cost-calc-quote-form__field">
+                  <label className="cost-calc-quote-form__label" htmlFor="quote-project-notes">Project Notes / Specifications</label>
                   <textarea
+                    id="quote-project-notes"
                     rows={3}
-                    className="cost-calc-field__input"
-                    style={{ border: '1.5px solid #dedcd5', borderRadius: '8px', resize: 'vertical' }}
+                    className="cost-calc-quote-form__input cost-calc-quote-form__textarea"
                     placeholder="Enter any custom dielines, bottle preferences, target timeline, etc."
                     value={quoteNotes}
                     onChange={(e) => setQuoteNotes(e.target.value)}
@@ -2084,7 +2548,7 @@ export default function CalculatorPage() {
                 </div>
 
                 {quoteFeedback && (
-                  <p style={{ fontSize: '0.84rem', fontWeight: 600, color: quoteFeedback.includes('successfully') ? '#27ae60' : '#c0392b' }}>
+                  <p className={`cost-calc-quote-form__feedback${quoteFeedback.includes('successfully') ? ' cost-calc-quote-form__feedback--success' : ''}`} role="status">
                     {quoteFeedback}
                   </p>
                 )}
@@ -2093,9 +2557,14 @@ export default function CalculatorPage() {
                   type="submit"
                   disabled={isSubmittingQuote}
                   className="cost-calc-btn cost-calc-btn--dark cost-calc-btn--block"
-                  style={{ marginTop: '6px' }}
                 >
-                  {isSubmittingQuote ? 'Submitting Request…' : 'SUBMIT QUOTATION REQUEST'}
+                  {isSubmittingQuote
+                    ? 'Submitting Request…'
+                    : bulkQuoteItems.length > 0
+                      ? 'SUBMIT BULK QUOTE'
+                      : Number(finishedQty) === 0
+                        ? 'SUBMIT PACKAGING QUOTE'
+                        : 'SUBMIT QUOTATION REQUEST'}
                 </button>
               </div>
             </form>

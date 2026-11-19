@@ -182,7 +182,7 @@ class UserModel {
     const fields = [];
     const values = [];
 
-    const allowedFields = ['first_name', 'last_name', 'email', 'phone', 'street_address', 'city', 'postal_code', 'role'];
+    const allowedFields = ['first_name', 'last_name', 'email', 'phone', 'street_address', 'city', 'postal_code', 'role', 'password'];
 
     for (const key of allowedFields) {
       if (userData[key] !== undefined) {

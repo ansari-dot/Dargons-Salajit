@@ -6,6 +6,7 @@ import { LoginPage } from '../pages/Login/Login';
 import { Dashboard } from '../pages/Dashboard/Dashboard';
 import { OrdersPage } from '../pages/Orders/Orders';
 import { QuotationsPage } from '../pages/Quotations/Quotations';
+import { BulkRequestsPage } from '../pages/BulkRequests/BulkRequests';
 import { CalculatorManagerPage } from '../pages/Calculator/CalculatorManagerPage';
 import { ProductsPage } from '../pages/Products/Products';
 import { CustomersPage } from '../pages/Customers/Customers';
@@ -41,6 +42,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="quotations" element={<QuotationsPage />} />
+        <Route path="bulk-requests" element={<BulkRequestsPage />} />
         <Route path="calculator-setup" element={<CalculatorManagerPage />} />
         <Route path="products" element={<ProductsPage />} />
         <Route path="brands/upload" element={<UploadBrandPage />} />

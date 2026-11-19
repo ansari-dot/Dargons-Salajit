@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ProductCard from '@/components/product/ProductCard';
+import BulkOrderSection from '@/components/product/BulkOrderSection';
 import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
 import { addToCart, addToCartDb } from '@/lib/redux/slices/cartSlice';
 import { toggleWishlist, toggleWishlistDb } from '@/lib/redux/slices/wishlistSlice';
@@ -310,6 +311,9 @@ export default function ProductDetailPage({ params }: { params?: { id?: string }
                 <button type="button" className="product-social-btn" aria-label="Share on Pinterest">p</button>
               </div>
             </div>
+
+            {/* Bulk Order Section */}
+            <BulkOrderSection product={{ id: product.id, name: product.name, price: product.price, image: activeImage || product.image }} />
           </div>
         </div>
 

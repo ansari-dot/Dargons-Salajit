@@ -1,13 +1,16 @@
 const assert = require('node:assert/strict');
 const { afterEach, test } = require('node:test');
+const db = require('../config/db');
 const CalculatorRequestModel = require('../models/CalculatorRequestModel');
 const PricingEngine = require('../services/pricingEngine');
 const { createCalculatorRequest } = require('../services/calculatorRequest.service');
 
+const originalQuery = db.query;
 const originalCreateRequest = CalculatorRequestModel.createRequest;
 const originalCalculate = PricingEngine.calculate;
 
 afterEach(() => {
+  db.query = originalQuery;
   CalculatorRequestModel.createRequest = originalCreateRequest;
   PricingEngine.calculate = originalCalculate;
 });
@@ -83,5 +86,70 @@ test('unpriced quotation does not persist client-provided totals', async () => {
   assert.equal(persistedData.estimatedProjectCost, 0);
   assert.equal(persistedData.printingCost, 25);
   assert.equal(persistedData.discount, 5);
+  assert.equal(persistedData.configurationSnapshot.calculation.pricingAvailable, false);
+});
+
+test('zero product quantity saves a packaging quote without product calculation', async () => {
+  let persistedData;
+  db.query = async (_sql, params) => {
+    assert.deepEqual(params, [1, 7]);
+    return [[{
+      packaging_id: 7,
+      packaging_name: 'Spoon',
+      packaging_type: 'spoon',
+      moq: 100,
+      alternative_group: 'spoons',
+    }]];
+  };
+  PricingEngine.calculate = async () => {
+    throw new Error('Product calculation should not run for a zero-quantity packaging quote.');
+  };
+  CalculatorRequestModel.createRequest = async (data) => {
+    persistedData = data;
+    return { id: 14, referenceNo: 'PL-2026-111111' };
+  };
+
+  await createCalculatorRequest({
+    productId: 1,
+    productName: 'Shilajit Resin',
+    finishedQuantity: 0,
+    selectedPackagingIds: [7],
+    packagingPurchases: { 7: '200' },
+    configurationSnapshot: { packagingOnly: true },
+  });
+
+  assert.equal(persistedData.productCost, 0);
+  assert.equal(persistedData.packagingName, 'Spoon');
+  assert.equal(persistedData.packagingPurchaseQuantity, 200);
+  assert.equal(persistedData.configurationSnapshot.packagingOnly, true);
+  assert.equal(persistedData.configurationSnapshot.calculation.pricingAvailable, false);
+  assert.equal(persistedData.configurationSnapshot.packagingBreakdown[0].remainingQuantity, 200);
+});
+
+test('zero product quantity saves bulk quote items without product calculation', async () => {
+  let persistedData;
+  db.query = async () => {
+    throw new Error('No packaging lookup should be needed for this bulk request.');
+  };
+  PricingEngine.calculate = async () => {
+    throw new Error('Product calculation should not run for a zero-quantity bulk quote.');
+  };
+  CalculatorRequestModel.createRequest = async (data) => {
+    persistedData = data;
+    return { id: 15, referenceNo: 'PL-2026-222222' };
+  };
+
+  await createCalculatorRequest({
+    productId: 1,
+    productName: 'Shilajit Resin',
+    finishedQuantity: 0,
+    selectedPackagingIds: [],
+    configurationSnapshot: {
+      bulkOrderItems: [{ productId: 1, productName: 'Shilajit Resin', quantity: 50, unit: 'units', moq: 10 }],
+    },
+  });
+
+  assert.equal(persistedData.productCost, 0);
+  assert.equal(persistedData.configurationSnapshot.bulkOrderItems[0].quantity, 50);
   assert.equal(persistedData.configurationSnapshot.calculation.pricingAvailable, false);
 });

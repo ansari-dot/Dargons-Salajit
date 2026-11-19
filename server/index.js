@@ -61,6 +61,7 @@ const calculatorRoutes        = require('./routes/calculator.route');
 const calculatorRequestRoutes = require('./routes/calculatorRequest.route');
 const certificationRoutes = require('./routes/certificationRoutes');
 const trademarkRoutes = require('./routes/trademarkRoutes');
+const packagingRoutes = require('./routes/packagingRoutes');
 const router = require('./routes/location.js')
 
 
@@ -84,6 +85,7 @@ app.use('/api/calculator', calculatorRoutes);
 app.use('/api/calculator/requests', calculatorRequestRoutes);
 app.use('/api/certifications', certificationRoutes);
 app.use('/api/trademarks', trademarkRoutes);
+app.use('/api/packaging', packagingRoutes);
 app.use('/api/location',router)
 
 // ── Health check ──────────────────────────────────────────────────────────────
