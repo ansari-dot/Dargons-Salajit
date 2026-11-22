@@ -14,6 +14,7 @@ const createAdmin = async ({ email, password, firstName = 'Admin', lastName = ''
   let user = await UserModel.findByEmail(trimmedEmail);
   const isNewUser = !user;
 
+  
   if (!isNewUser) {
     // 2. Ensure password matches the requested one (idempotent re-login)
     const existingHashed = user.password || '';
