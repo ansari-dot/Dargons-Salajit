@@ -12,8 +12,10 @@ import { RecentCustomers } from '../../components/dashboard/RecentCustomers';
 import { StockOverview } from '../../components/dashboard/StockOverview';
 import { TopLocations } from '../../components/dashboard/TopLocations';
 import { RecentActivity } from '../../components/dashboard/RecentActivity';
+import { useAppSelector } from '../../store';
 
 export const Dashboard: React.FC = () => {
+  const user = useAppSelector((state) => state.adminAuth.user);
   const {
     stats,
     salesData,
@@ -25,12 +27,19 @@ export const Dashboard: React.FC = () => {
     topLocations,
     activities,
     quickActions,
+    error,
   } = useDashboard();
+  const totalOrders = orderStatuses.reduce((total, item) => total + item.count, 0);
 
   return (
     <div className="space-y-6 pb-12 min-w-0">
       {/* 1. Header */}
-      <DashboardHeader userName="Arsalan" />
+      <DashboardHeader userName={user?.first_name || user?.email?.split('@')[0] || 'Admin'} />
+      {error && (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          Dashboard data could not be refreshed: {error}
+        </div>
+      )}
 
       {/* 2. Top Row: 4 Stat Cards (8 cols) + 1 Product Promo Card (4 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
@@ -53,7 +62,7 @@ export const Dashboard: React.FC = () => {
           <SalesChart data={salesData} />
         </div>
         <div className="lg:col-span-3">
-          <OrderStatusChart data={orderStatuses} totalOrders={248} />
+          <OrderStatusChart data={orderStatuses} totalOrders={totalOrders} />
         </div>
         <div className="lg:col-span-3">
           <QuickActions actions={quickActions} />

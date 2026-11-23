@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../../components/common/Toast';
 import { customersApi, CreateCustomerPayload } from '../../services/customers.api';
 import { Card } from '../../components/common/Card';
 import { Avatar } from '../../components/common/Avatar';
 import { Button } from '../../components/common/Button';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { isDisposableEmail } from '../../lib/disposableEmail';
 import { 
   Search, 
   Mail, 
@@ -18,7 +20,8 @@ import {
   RefreshCw,
   Phone,
   MapPin,
-  ShieldCheck
+  ShieldCheck,
+  Eye
 } from 'lucide-react';
 import { Customer } from '../../types';
 
@@ -26,9 +29,14 @@ export const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showDisposableOnly, setShowDisposableOnly] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const toast = useToast();
+
+  // Show Customer (detail modal) state
+  const [viewCustomer, setViewCustomer] = useState<Customer | null>(null);
+  const [isViewLoading, setIsViewLoading] = useState(false);
 
   // Form State for Add Customer Modal
   const [formData, setFormData] = useState<CreateCustomerPayload>({
@@ -47,7 +55,12 @@ export const CustomersPage: React.FC = () => {
     setIsLoading(true);
     try {
       const data = await customersApi.getCustomers();
-      setCustomers(data);
+      // Flag customers with disposable/temporary email addresses
+      const flagged = data.map((c) => ({
+        ...c,
+        isDisposableEmail: isDisposableEmail(c.email),
+      }));
+      setCustomers(flagged);
     } catch (err) {
       console.error('Failed to load customers:', err);
     } finally {
@@ -67,16 +80,15 @@ export const CustomersPage: React.FC = () => {
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.first_name || !formData.email) {
-      setStatusMessage({ type: 'error', text: 'First Name and Email are required.' });
+      toast.error('First Name and Email are required.');
       return;
     }
 
     setIsSubmitting(true);
-    setStatusMessage(null);
     try {
       const newCustomer = await customersApi.createCustomer(formData);
       setCustomers(prev => [newCustomer, ...prev]);
-      setStatusMessage({ type: 'success', text: `Customer ${newCustomer.name} created successfully!` });
+      toast.success(`Customer ${newCustomer.name} created successfully!`);
       setIsModalOpen(false);
       setFormData({
         first_name: '',
@@ -92,9 +104,24 @@ export const CustomersPage: React.FC = () => {
       loadCustomers();
     } catch (error: any) {
       console.error('Error adding customer:', error);
-      setStatusMessage({ type: 'error', text: error.response?.data?.message || 'Failed to create customer.' });
+      toast.error(error.response?.data?.message || 'Failed to create customer.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Show Customer: fetch full profile from GET /api/admin/customer/:id
+  const handleViewCustomer = async (id: string) => {
+    setIsViewLoading(true);
+    setViewCustomer(customers.find((c) => String(c.id) === String(id)) || null);
+    try {
+      const detail = await customersApi.getCustomer(id);
+      if (detail) setViewCustomer(detail);
+    } catch (error) {
+      console.error('Failed to load customer details:', error);
+      toast.error('Failed to load customer details.');
+    } finally {
+      setIsViewLoading(false);
     }
   };
 
@@ -104,10 +131,10 @@ export const CustomersPage: React.FC = () => {
     try {
       await customersApi.deleteCustomer(id);
       setCustomers(prev => prev.filter(c => c.id !== id));
-      setStatusMessage({ type: 'success', text: `Customer '${name}' deleted successfully.` });
+      toast.success(`Customer '${name}' deleted successfully.`);
     } catch (error) {
       console.error('Failed to delete customer:', error);
-      setStatusMessage({ type: 'error', text: 'Failed to delete customer.' });
+      toast.error('Failed to delete customer.');
     }
   };
 
@@ -137,10 +164,11 @@ export const CustomersPage: React.FC = () => {
 
   const filteredCustomers = customers.filter(
     (c) =>
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.phone && c.phone.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (c.city && c.city.toLowerCase().includes(searchTerm.toLowerCase()))
+      (!showDisposableOnly || c.isDisposableEmail) &&
+      (c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.phone && c.phone.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (c.city && c.city.toLowerCase().includes(searchTerm.toLowerCase())))
   );
 
   // Summary Metrics
@@ -148,6 +176,7 @@ export const CustomersPage: React.FC = () => {
   const activeBuyersCount = customers.filter(c => c.ordersCount > 0).length;
   const totalLifetimeSpent = customers.reduce((acc, c) => acc + (c.totalSpent || 0), 0);
   const avgLifetimeSpent = totalCustomersCount > 0 ? totalLifetimeSpent / totalCustomersCount : 0;
+  const disposableEmailCount = customers.filter(c => c.isDisposableEmail).length;
 
   return (
     <div className="space-y-6">
@@ -192,17 +221,6 @@ export const CustomersPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Alert Banner */}
-      {statusMessage && (
-        <div className={`p-3 rounded-lg text-xs font-medium flex items-center justify-between ${
-          statusMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-        }`}>
-          <span>{statusMessage.text}</span>
-          <button onClick={() => setStatusMessage(null)} className="text-slate-400 hover:text-slate-600">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Metric Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -245,6 +263,16 @@ export const CustomersPage: React.FC = () => {
             <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">{formatCurrency(avgLifetimeSpent)}</h3>
           </div>
         </Card>
+
+        <Card className="p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+            <Mail className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 font-medium">Temp Email Accounts</p>
+            <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">{disposableEmailCount}</h3>
+          </div>
+        </Card>
       </div>
 
       {/* Filter & Search Bar */}
@@ -258,6 +286,20 @@ export const CustomersPage: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           />
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDisposableOnly(!showDisposableOnly)}
+            className={`flex items-center gap-1.5 ${showDisposableOnly ? 'bg-rose-50 border-rose-200 text-rose-700' : ''}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+            {showDisposableOnly ? 'Show All Customers' : 'Show Temp Emails Only'}
+            <span className="ml-auto text-[10px] font-bold bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded">
+              {customers.filter(c => c.isDisposableEmail).length}
+            </span>
+          </Button>
         </div>
       </Card>
 
@@ -312,6 +354,14 @@ export const CustomersPage: React.FC = () => {
 
                     <td className="py-3 px-4">
                       <p className="text-slate-800 font-medium">{cust.email}</p>
+                      {cust.isDisposableEmail && (
+                        <span className="inline-flex items-center gap-1 mt-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                          <span className="text-[10px] text-rose-600 font-semibold uppercase tracking-wider">
+                            Temp Email
+                          </span>
+                        </span>
+                      )}
                       {cust.phone && (
                         <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
                           <Phone className="w-3 h-3" /> {cust.phone}
@@ -347,6 +397,14 @@ export const CustomersPage: React.FC = () => {
 
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleViewCustomer(cust.id)}
+                          title="View Customer"
+                          className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded transition-colors font-medium"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View</span>
+                        </button>
                         <a
                           href={`mailto:${cust.email}`}
                           title="Send Email"
@@ -497,6 +555,123 @@ export const CustomersPage: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Show Customer Detail Modal */}
+      {viewCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border-slate-100">
+            <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-blue-600" />
+                <h3 className="font-bold text-slate-900 text-sm">Customer Details</h3>
+                {viewCustomer.role === 'admin' && (
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                    ADMIN
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setViewCustomer(null)}
+                className="text-slate-400 hover:text-slate-600 rounded-lg p-1 hover:bg-slate-200/50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              {isViewLoading ? (
+                <div className="p-8 text-center text-slate-400">
+                  <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
+                  <p className="text-xs">Loading customer from admin backend...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Profile Header */}
+                  <div className="flex items-center gap-3">
+                    <Avatar name={viewCustomer.name} src={viewCustomer.avatar} size="md" />
+                    <div>
+                      <p className="font-bold text-slate-900 text-sm">{viewCustomer.name}</p>
+                      <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-0.5">
+                        <ShieldCheck className="w-3 h-3 inline" /> Verified Customer
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Contact */}
+                  <div className="grid grid-cols-1 gap-2.5">
+                    <div className="flex items-start gap-2">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
+                      <div>
+                        <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Email</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-slate-800 font-medium">{viewCustomer.email || 'Not set'}</p>
+                          {viewCustomer.isDisposableEmail && (
+                            <span className="inline-flex items-center gap-0.5">
+                              <span className="w-1 h-1 rounded-full bg-rose-500"></span>
+                              <span className="text-[9px] text-rose-600 font-semibold uppercase tracking-wider">
+                                Temp Email
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
+                      <div>
+                        <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Phone</p>
+                        <p className="text-slate-800 font-medium">{viewCustomer.phone || 'Not set'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
+                      <div>
+                        <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Address</p>
+                        <p className="text-slate-800 font-medium">
+                          {[viewCustomer.street_address, viewCustomer.city, viewCustomer.postal_code]
+                            .filter(Boolean)
+                            .join(', ') || 'Not set'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100">
+                    <div className="text-center p-2 bg-blue-50 rounded-lg">
+                      <ShoppingBag className="w-3.5 h-3.5 text-blue-600 mx-auto mb-1" />
+                      <p className="font-extrabold text-slate-900 text-sm">{viewCustomer.ordersCount}</p>
+                      <p className="text-[10px] text-slate-500 font-medium">Orders</p>
+                    </div>
+                    <div className="text-center p-2 bg-emerald-50 rounded-lg">
+                      <DollarSign className="w-3.5 h-3.5 text-emerald-600 mx-auto mb-1" />
+                      <p className="font-extrabold text-slate-900 text-sm">{formatCurrency(viewCustomer.totalSpent || 0)}</p>
+                      <p className="text-[10px] text-slate-500 font-medium">Lifetime Spend</p>
+                    </div>
+                    <div className="text-center p-2 bg-purple-50 rounded-lg">
+                      <Users className="w-3.5 h-3.5 text-purple-600 mx-auto mb-1" />
+                      <p className="font-extrabold text-slate-900 text-sm">{viewCustomer.joinedDate}</p>
+                      <p className="text-[10px] text-slate-500 font-medium">Member Since</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <a
+                      href={`mailto:${viewCustomer.email}`}
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+                    >
+                      <Mail className="w-3.5 h-3.5" /> Contact
+                    </a>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setViewCustomer(null)}>
+                      Close
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -27,12 +27,47 @@ const initDb = async () => {
     }
 
     // Auto-migrate columns if tables existed from an earlier schema version
+    await addColumnIfNotExist('certifications', 'image_url', 'TEXT NULL');
+
+    // Trademarks table
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS trademarks (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          subtitle VARCHAR(500) NULL,
+          image_url TEXT NULL,
+          document_url TEXT NULL,
+          display_order INT NOT NULL DEFAULT 0,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_trademarks_active_order (is_active, display_order)
+        )
+      `);
+
+      // Seed default trademarks if table is empty
+      const [existingTrademarks] = await db.query('SELECT COUNT(*) as count FROM trademarks');
+      if (existingTrademarks[0].count === 0) {
+        await db.query(`
+          INSERT INTO trademarks (title, subtitle, image_url, document_url, display_order, is_active)
+          VALUES 
+          ('Trademark Certificate', 'Dragon Shilajit™ Registered Trademark', 'https://cdn.shopify.com/s/files/1/0720/3409/1309/files/Trademark.jpg', 'https://cdn.shopify.com/s/files/1/0720/3409/1309/files/Trademark.jpg', 0, 1),
+          ('Trademark Registration', 'Official Registration Document', 'https://cdn.shopify.com/s/files/1/0720/3409/1309/files/Trademark_1.jpg', 'https://cdn.shopify.com/s/files/1/0720/3409/1309/files/Trademark_1.jpg', 1, 1)
+        `);
+        console.log('✨ Seeded default Trademarks.');
+      }
+    } catch (e) { /* table already exists or error handled */ }
     await addColumnIfNotExist('products', 'category_id', 'INT DEFAULT 1');
     await addColumnIfNotExist('products', 'sku', "VARCHAR(100) DEFAULT 'SKU-001'");
     await addColumnIfNotExist('products', 'name', "VARCHAR(255) NOT NULL DEFAULT 'Product'");
     await addColumnIfNotExist('products', 'slug', "VARCHAR(255) NOT NULL DEFAULT 'product'");
     await addColumnIfNotExist('products', 'price', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00');
     await addColumnIfNotExist('products', 'old_price', 'DECIMAL(10,2) NULL');
+    await addColumnIfNotExist('products', 'usd_price', 'DECIMAL(10,2) NULL');
+    // Delivery charges (USD) applied to customers outside Pakistan
+    await addColumnIfNotExist('products', 'delivery_charge_usd', 'DECIMAL(10,2) NULL');
+    await addColumnIfNotExist('products', 'urgent_delivery_charge_usd', 'DECIMAL(10,2) NULL');
     await addColumnIfNotExist('products', 'vendor', "VARCHAR(100) DEFAULT 'Himalayan Surp'");
     await addColumnIfNotExist('products', 'size', "VARCHAR(50) DEFAULT 'Medium'");
     await addColumnIfNotExist('products', 'rating', 'DECIMAL(3,2) DEFAULT 5.00');
@@ -57,6 +92,7 @@ const initDb = async () => {
 
     await addColumnIfNotExist('inventory', 'product_id', 'INT NULL');
     await addColumnIfNotExist('inventory', 'productId', 'INT NULL');
+    await addColumnIfNotExist('inventory', 'variantId', 'INT NULL');
     try { await db.query(`UPDATE inventory SET product_id = productId WHERE product_id IS NULL AND productId IS NOT NULL`); } catch (e) { }
     try { await db.query(`UPDATE inventory SET productId = product_id WHERE productId IS NULL AND product_id IS NOT NULL`); } catch (e) { }
 
@@ -68,6 +104,9 @@ const initDb = async () => {
     await addColumnIfNotExist('orders', 'payment_status', "ENUM('unpaid', 'paid', 'refunded', 'failed') DEFAULT 'unpaid'");
     await addColumnIfNotExist('orders', 'tracker_token',   'VARCHAR(255) NULL');
     await addColumnIfNotExist('orders', 'safepay_tracker', 'VARCHAR(255) NULL');
+    // Delivery options: Normal / Urgent + the delivery charge collected with the order
+    await addColumnIfNotExist('orders', 'delivery_type',   "ENUM('normal', 'urgent') DEFAULT 'normal'");
+    await addColumnIfNotExist('orders', 'delivery_charge', 'DECIMAL(10,2) DEFAULT 0.00');
 
     // Safepay payment audit log table
     try {
@@ -126,13 +165,23 @@ const initDb = async () => {
       console.warn('Deals table init warning:', dErr.message);
     }
 
+    // Brands table column compatibility (store brand showcase & logo uploads)
+    await addColumnIfNotExist('brands', 'name', "VARCHAR(255) NOT NULL DEFAULT 'Brand'");
+    await addColumnIfNotExist('brands', 'description', 'TEXT NULL');
+    await addColumnIfNotExist('brands', 'logo_url', 'TEXT NULL');
+    await addColumnIfNotExist('brands', 'file_name', 'VARCHAR(255) NULL');
+    await addColumnIfNotExist('brands', 'file_size', 'INT NULL');
+    await addColumnIfNotExist('brands', 'mime_type', 'VARCHAR(100) NULL');
+    await addColumnIfNotExist('brands', 'is_active', 'TINYINT(1) DEFAULT 1');
+
+
     await addColumnIfNotExist('product_images', 'image_url', 'TEXT NULL');
     await addColumnIfNotExist('product_images', 'imageUrl', 'TEXT NULL');
     try { await db.query(`UPDATE product_images SET image_url = imageUrl WHERE image_url IS NULL AND imageUrl IS NOT NULL`); } catch (e) { }
     try { await db.query(`UPDATE product_images SET imageUrl = image_url WHERE imageUrl IS NULL AND image_url IS NOT NULL`); } catch (e) { }
 
     // Auto-fix createdAt, updatedAt, and legacy camelCase column defaults across all database tables
-    const allTables = ['products', 'product_images', 'product_details', 'inventory', 'categories', 'blogs', 'users', 'orders', 'order_items', 'coupons', 'coupon_usages', 'gallery', 'cart_items', 'wishlist'];
+    const allTables = ['products', 'product_images', 'product_details', 'inventory', 'categories', 'blogs', 'users', 'orders', 'order_items', 'coupons', 'coupon_usages', 'gallery', 'brands', 'cart_items', 'wishlist'];
     for (const t of allTables) {
       try { await db.query(`ALTER TABLE ${t} MODIFY COLUMN createdAt TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP`); } catch (e) { }
       try { await db.query(`ALTER TABLE ${t} MODIFY COLUMN updatedAt TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) { }
@@ -167,6 +216,17 @@ const initDb = async () => {
     await addColumnIfNotExist('users', 'streetAddress', 'VARCHAR(255) NULL');
     await addColumnIfNotExist('users', 'postcode', 'VARCHAR(255) NULL');
     await addColumnIfNotExist('users', 'refresh_token', 'TEXT NULL');
+    // Email verification (existing users default to verified so nobody is locked out)
+    await addColumnIfNotExist('users', 'email_verified', 'TINYINT(1) NOT NULL DEFAULT 1');
+    await addColumnIfNotExist('users', 'verification_code', 'VARCHAR(64) NULL');
+    await addColumnIfNotExist('users', 'verification_expires_at', 'DATETIME NULL');
+    await addColumnIfNotExist('users', 'verification_sent_at', 'DATETIME NULL');
+    // Password reset (hashed token + expiry + resend cooldown)
+    await addColumnIfNotExist('users', 'reset_token', 'VARCHAR(64) NULL');
+    await addColumnIfNotExist('users', 'reset_expires_at', 'DATETIME NULL');
+    await addColumnIfNotExist('users', 'reset_sent_at', 'DATETIME NULL');
+    // Self-heal: widen the code column if it was created too narrow earlier
+    try { await db.query(`ALTER TABLE users MODIFY COLUMN verification_code VARCHAR(64) NULL`); } catch (e) { }
     try { await db.query(`UPDATE users SET first_name = COALESCE(first_name, firstName)`); } catch (e) { }
     try { await db.query(`UPDATE users SET firstName = COALESCE(firstName, first_name)`); } catch (e) { }
     try { await db.query(`UPDATE users SET last_name = COALESCE(last_name, lastName)`); } catch (e) { }
@@ -176,9 +236,97 @@ const initDb = async () => {
     try { await db.query(`UPDATE users SET postal_code = COALESCE(postal_code, postcode)`); } catch (e) { }
     try { await db.query(`UPDATE users SET postcode = COALESCE(postcode, postal_code)`); } catch (e) { }
 
+    // ── Packaging Items table ────────────────────────────────────────────────
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS packaging_items (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          description TEXT NULL,
+          price_pkr DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          image_url TEXT NULL,
+          is_active TINYINT(1) DEFAULT 1,
+          display_order INT DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+      const [pkgCount] = await db.query('SELECT COUNT(*) as count FROM packaging_items');
+      if (pkgCount[0].count === 0) {
+        await db.query(`
+          INSERT INTO packaging_items (name, description, price_pkr, display_order, is_active) VALUES
+          ('Premium Gift Box', 'Luxury branded gift box with ribbon', 350.00, 1, 1),
+          ('Eco Kraft Pouch', 'Recyclable kraft paper pouch with seal', 150.00, 2, 1),
+          ('Velvet Drawstring Bag', 'Soft velvet bag for premium gifting', 250.00, 3, 1),
+          ('Bubble Wrap Protection', 'Extra protective bubble wrap layer', 80.00, 4, 1)
+        `);
+        console.log('✨ Seeded default packaging items.');
+      }
+    } catch (e) {
+      console.warn('Packaging items table init warning:', e.message);
+    }
+
+    // ── Bulk order tiers table ───────────────────────────────────────────────
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS bulk_order_tiers (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          min_qty INT NOT NULL,
+          discount_pct DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+          label VARCHAR(100) NULL,
+          is_active TINYINT(1) DEFAULT 1
+        )
+      `);
+      const [tierCount] = await db.query('SELECT COUNT(*) as count FROM bulk_order_tiers');
+      if (tierCount[0].count === 0) {
+        await db.query(`
+          INSERT INTO bulk_order_tiers (min_qty, discount_pct, label) VALUES
+          (5,  5.00,  'Buy 5+ — Save 5%'),
+          (10, 10.00, 'Buy 10+ — Save 10%'),
+          (20, 15.00, 'Buy 20+ — Save 15%'),
+          (50, 20.00, 'Buy 50+ — Save 20%')
+        `);
+        console.log('✨ Seeded default bulk order tiers.');
+      }
+    } catch (e) {
+      console.warn('Bulk order tiers table init warning:', e.message);
+    }
+
+    // Private Label Calculator schema & default seeds
+    try {
+      const migrateCalculator = require('../scripts/initCalculatorSchema.cjs');
+      await migrateCalculator();
+    } catch (e) {
+      console.warn('⚠️ Calculator migration notice:', e.message);
+    }
+
+    // ── Bootstrap store owner (admin) account ───────────────────────────────
+    // Only used on a brand-new DB. Idempotent: if the email already exists,
+    // its password/role are aligned to the values below (safe to run repeatedly).
+    try {
+      const { createAdmin } = require('../services/admin.service');
+      await createAdmin({
+        email: 'yawarhussain793@gmail.com',
+        password: 'yawar123',
+        firstName: 'Yawar',
+        lastName: 'Hussain',
+        phone: '03445789763',
+        firstNameFallback: 'Admin',
+        lastNameFallback: 'Owner',
+      });
+      console.log('✅ Admin account created: yawarhussain793@gmail.com');
+    } catch (error) {
+      console.warn('⚠️  Admin bootstrap failed:', error.message);
+    }
+
     console.log('✅ Database tables & schema migrations initialized successfully.');
   } catch (error) {
-    console.error('❌ Error initializing database:', error.message);
+    const dbErrorCode = error.code || (Array.isArray(error.errors) && error.errors.find((e) => e && e.code)?.code);
+    console.error('❌ Error initializing database:', error.message || dbErrorCode || error.name);
+    if (['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ER_ACCESS_DENIED_ERROR', 'ER_BAD_DB_ERROR'].includes(dbErrorCode)) {
+      console.error(`⚠️  MySQL is not reachable at ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 3306} (${dbErrorCode}).`);
+      console.error('⚠️  Start MySQL (or fix the DB_* values in server/.env) and restart the API — every database endpoint will keep failing until then.');
+    }
   }
 };
 

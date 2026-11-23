@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   ShoppingBag,
+  ShoppingCart,
   Package,
   Users,
   Boxes,
@@ -19,6 +20,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Flame,
+  Tag,
+  ScrollText,
+  Calculator,
+  BadgeCheck,
+  Shield,
 } from 'lucide-react';
 import { BrandLogo } from '../common/BrandLogo';
 
@@ -38,12 +44,18 @@ interface NavItemConfig {
 const mainNavItems: NavItemConfig[] = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Orders', path: '/orders', icon: ShoppingBag, badge: 12 },
+  { name: 'Bulk Requests', path: '/bulk-requests', icon: ShoppingCart },
+  { name: 'Quotations', path: '/quotations', icon: ScrollText },
+  { name: 'Calculator Setup', path: '/calculator-setup', icon: Calculator },
   { name: 'Products', path: '/products', icon: Package },
+  { name: 'Upload Brand', path: '/brands/upload', icon: Tag },
   { name: 'Deals & Offers', path: '/deals', icon: Flame },
   { name: 'Customers', path: '/customers', icon: Users },
   { name: 'Inventory', path: '/inventory', icon: Boxes },
   { name: 'Coupons', path: '/coupons', icon: Ticket },
   { name: 'Gallery Showcase', path: '/gallery', icon: ImageIcon },
+  { name: 'Certifications', path: '/certifications', icon: BadgeCheck },
+  { name: 'Trademark', path: '/trademark', icon: Shield },
   { name: 'Shipping', path: '/shipping', icon: Truck },
   { name: 'Reports', path: '/reports', icon: BarChart2 },
   { name: 'Marketing', path: '/marketing', icon: Megaphone },
@@ -180,7 +192,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {!collapsed && (
           <div className="pt-6 pb-2">
             <div className="relative overflow-hidden rounded-2xl p-4 text-white shadow-sm group">
-              {/* Background mountain image with dark gradient overlay */}
               <img
                 src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80"
                 alt="Himalayan Mountain Peaks"

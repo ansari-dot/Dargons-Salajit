@@ -9,6 +9,8 @@ import {
   setAppliedCouponError, 
   removeCoupon 
 } from '@/lib/redux/slices/cartSlice';
+import { formatAmount } from '@/lib/utils/currency';
+import { PAKISTAN_DELIVERY_CHARGE, isPakistanCustomer } from '@/lib/utils/delivery';
 
 export default function CartSummary() {
   const dispatch = useAppDispatch();
@@ -21,7 +23,15 @@ export default function CartSummary() {
   const [inputCoupon, setInputCoupon] = useState('');
   const [isValidating, setIsValidating] = useState(false);
 
-  const grandTotal = Math.max(0, subtotal - discountAmount);
+  const currency = useAppSelector((state) => state.ui.selectedCurrency);
+  const countryCode = useAppSelector((state) => state.ui.countryCode);
+  const isPakistan = isPakistanCustomer(countryCode);
+
+  // The cart shows the standard (Normal) ₨300 delivery charge for Pakistan —
+  // the final charge, including Urgent delivery, is confirmed on checkout.
+  const deliveryCharge = isPakistan ? PAKISTAN_DELIVERY_CHARGE : 0;
+
+  const grandTotal = Math.max(0, subtotal - discountAmount) + deliveryCharge;
 
   const handleApplyCoupon = async () => {
     if (!inputCoupon.trim()) return;
@@ -63,26 +73,30 @@ export default function CartSummary() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
         <span>Subtotal</span>
-        <span style={{ fontWeight: 600 }}>₨{subtotal.toLocaleString()}.00</span>
+        <span style={{ fontWeight: 600 }}>{formatAmount(subtotal, currency)}</span>
       </div>
 
       {discountAmount > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', color: '#2b9348' }}>
           <span>Discount ({couponCode})</span>
-          <span style={{ fontWeight: 600 }}>-₨{discountAmount.toLocaleString()}.00</span>
+          <span style={{ fontWeight: 600 }}>-{formatAmount(discountAmount, currency)}</span>
         </div>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-        <span>Shipping</span>
-        <span style={{ fontWeight: 600, color: '#2b9348' }}>FREE</span>
+        <span>Delivery (Normal)</span>
+        {isPakistan ? (
+          <span style={{ fontWeight: 600 }}>{formatAmount(deliveryCharge, currency)}</span>
+        ) : (
+          <span style={{ fontWeight: 600, color: '#666' }}>Calculated at checkout</span>
+        )}
       </div>
 
       <div style={{ height: '1px', background: '#eee', margin: '16px 0' }}></div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', fontSize: '1.1rem', fontWeight: 800 }}>
         <span>Total</span>
-        <span style={{ color: '#636830' }}>₨{grandTotal.toLocaleString()}.00</span>
+        <span style={{ color: '#636830' }}>{formatAmount(grandTotal, currency)}</span>
       </div>
 
       {/* Coupon Application Box */}
@@ -102,7 +116,7 @@ export default function CartSummary() {
               🎉 Coupon '{couponCode}' Applied!
             </p>
             <p style={{ fontSize: '0.75rem', color: '#15803d', margin: '2px 0 0 0' }}>
-              You saved ₨{discountAmount.toLocaleString()}.00
+              You saved {formatAmount(discountAmount, currency)}
             </p>
           </div>
           <button

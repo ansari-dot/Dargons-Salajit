@@ -1,5 +1,4 @@
 import { api } from './api';
-import { ordersData } from '../data/orders.data';
 import { Order, OrderStatus } from '../types';
 
 function mapStatus(status: string): OrderStatus {
@@ -32,6 +31,9 @@ export const ordersApi = {
             total: amt,
             paymentMethod: ord.payment_method || 'Cash on Delivery',
             paymentStatus: ord.payment_status || 'unpaid',
+            deliveryType: ord.delivery_type || 'normal',
+            deliveryCharge: Number(ord.delivery_charge || 0),
+            subtotal: Number(ord.subtotal || 0),
             status: mapStatus(ord.order_status),
             date: ord.created_at ? new Date(ord.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : new Date().toLocaleDateString(),
             createdAt: ord.created_at || new Date().toISOString(),
@@ -45,20 +47,16 @@ export const ordersApi = {
           };
         });
       }
-      return ordersData;
-    } catch (err) {
-      console.warn('Error fetching orders, using local fallback:', err);
-      return ordersData;
+      throw new Error('The orders API returned an invalid response.');
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+      return [];
     }
   },
 
   getOrderById: async (id: string): Promise<Order | undefined> => {
-    try {
-      const orders = await ordersApi.getOrders();
-      return orders.find((o) => o.id === id || o.orderNumber === id);
-    } catch (err) {
-      return ordersData.find((o) => o.id === id);
-    }
+    const orders = await ordersApi.getOrders();
+    return orders.find((o) => o.id === id || o.orderNumber === id);
   },
 
   updateOrderStatus: async (id: string, status: string): Promise<boolean> => {

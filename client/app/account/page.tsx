@@ -150,7 +150,7 @@ export default function AccountPage() {
 
   if (!user) {
     return (
-      <div className="account-page-wrapper" style={{ display: 'flex', alignItems: 'center', justifyCenter: 'center' }}>
+      <div className="account-page-wrapper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ background: '#fff', padding: '40px', borderRadius: '16px', textAlign: 'center', maxWidth: '400px', margin: '60px auto', border: '1px solid #e8e5de' }}>
           <RefreshCw className="account-empty-icon animate-spin" style={{ color: '#636830' }} />
           <p style={{ fontSize: '0.9rem', fontWeight: 600, color: '#333' }}>Loading your profile...</p>
@@ -505,7 +505,7 @@ export default function AccountPage() {
                   <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: '3px', backgroundColor: '#eae7e0', zIndex: 0 }} />
                   
                   <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyCenter: 'center' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <CheckCircle2 className="w-4 h-4" />
                     </div>
                     <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#333' }}>Placed</span>

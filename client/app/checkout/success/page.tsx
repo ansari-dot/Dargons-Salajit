@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, ShoppingBag } from 'lucide-react';
 
-export default function CheckoutSuccessPage() {
+function CheckoutSuccessContent() {
   const searchParams  = useSearchParams();
   const orderNumber   = searchParams.get('order_number') || searchParams.get('orderNumber') || '';
   const tracker       = searchParams.get('tracker') || '';
@@ -80,5 +80,23 @@ export default function CheckoutSuccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * useSearchParams() must live inside a Suspense boundary so the page can still
+ * be prerendered (Next.js CSR bailout requirement).
+ */
+export default function CheckoutSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>
+          Loading your order...
+        </div>
+      }
+    >
+      <CheckoutSuccessContent />
+    </Suspense>
   );
 }

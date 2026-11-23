@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import StoreProvider from '@/components/providers/StoreProvider';
 import LayoutContent from '@/components/layout/LayoutContent';
+import { ToastProvider } from '@/components/ui/Toast';
 
 export const metadata: Metadata = {
   title: 'Palses — Premium Himalayan Salajeet',
@@ -19,8 +20,10 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Site-wide typeface: Trajan Pro (local) with the free Cinzel
+            inscriptional serif as the web fallback — see --font-primary in globals.css */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400..900&display=swap"
           rel="stylesheet"
         />
         <link
@@ -30,7 +33,9 @@ export default function RootLayout({
       </head>
       <body>
         <StoreProvider>
-          <LayoutContent>{children}</LayoutContent>
+          <ToastProvider>
+            <LayoutContent>{children}</LayoutContent>
+          </ToastProvider>
         </StoreProvider>
       </body>
     </html>

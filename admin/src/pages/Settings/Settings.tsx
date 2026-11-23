@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
+import { useToast } from '../../components/common/Toast';
 import { Store, Bell, Shield, CreditCard, Save } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
+  const toast = useToast();
   const [storeName, setStoreName] = useState('SALAJIT');
   const [tagline, setTagline] = useState('Pure Himalayan Power');
   const [currency, setCurrency] = useState('USD ($)');
@@ -12,6 +14,7 @@ export const SettingsPage: React.FC = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     setSaved(true);
+    toast.success('Your settings have been saved.', 'Settings saved');
     setTimeout(() => setSaved(false), 2500);
   };
 

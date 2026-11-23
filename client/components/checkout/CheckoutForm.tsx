@@ -1,8 +1,20 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
 import { selectCartItems, selectCartSubtotal, clearCart } from '@/lib/redux/slices/cartSlice';
+import { fetchStorefrontProducts } from '@/lib/redux/slices/productSlice';
+import { formatAmount, fromPkr, getCurrencyLabel } from '@/lib/utils/currency';
+import {
+  DELIVERY_TYPES,
+  DeliveryType,
+  defaultInternationalCharge,
+  getDeliveryTypeLabel,
+  isPakistanCustomer,
+  resolveDeliveryCharge,
+  roundForCurrency,
+  usdToPkrAmount,
+} from '@/lib/utils/delivery';
 
 export default function CheckoutForm() {
   const dispatch = useAppDispatch();
@@ -11,8 +23,22 @@ export default function CheckoutForm() {
   const couponCode = useAppSelector((state) => state.cart.couponCode);
   const discountAmount = useAppSelector((state) => state.cart.discountAmount);
   const token = useAppSelector((state) => state.auth.token);
+  const currency = useAppSelector((state) => state.ui.selectedCurrency);
+  const currencyName = useAppSelector((state) => state.ui.currencyName);
+
+  // Country detected by the server IP tracker: Pakistan keeps the flat ₨300/₨500
+  // delivery charges, every other customer enters the courier charge below.
+  const countryCode = useAppSelector((state) => state.ui.countryCode);
+  const isPakistan = isPakistanCustomer(countryCode);
+  const products = useAppSelector((state) => state.products.products);
 
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'safepay'>('safepay');
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>('normal');
+  // Courier charge for customers outside Pakistan, in THEIR display currency
+  // (USD, AED, SAR, …). It is converted back to PKR when the order is sent.
+  const [internationalDeliveryCharge, setInternationalDeliveryCharge] = useState('');
+  /** True once the overseas customer edits the delivery charge themselves */
+  const [isOverseasChargeEdited, setIsOverseasChargeEdited] = useState(false);
   const [isOrdered, setIsOrdered] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
@@ -28,7 +54,82 @@ export default function CheckoutForm() {
     postal_code: ''
   });
 
-  const grandTotal = Math.max(0, subtotal - discountAmount);
+  // Delivery charges configured on the products inside the cart
+  // (Admin → Products → "Delivery Charges — Other Countries")
+  const configuredCharges = useMemo(() => {
+    const cartProducts = cartItems
+      .map((item) => products.find((p) => String(p.id) === String(item.id)))
+      .filter((p): p is NonNullable<typeof p> => Boolean(p));
+
+    const pickMax = (values: (number | undefined)[]) => {
+      const valid = values.filter((v): v is number => typeof v === 'number' && !isNaN(v) && v > 0);
+      return valid.length > 0 ? Math.max(...valid) : undefined;
+    };
+
+    return {
+      normal: pickMax(cartProducts.map((p) => p.deliveryChargeUsd)),
+      urgent: pickMax(cartProducts.map((p) => p.urgentDeliveryChargeUsd)),
+    };
+  }, [cartItems, products]);
+
+  /**
+   * Overseas charge for the selected speed, expressed in the customer's own
+   * currency: the per-product setting (stored in USD) first, then the store
+   * default (USD 24) — both converted from PKR into the display currency.
+   */
+  const getOverseasCharge = (type: DeliveryType): number => {
+    const configuredUsd =
+      type === 'urgent'
+        ? configuredCharges.urgent ?? configuredCharges.normal
+        : configuredCharges.normal;
+
+    if (configuredUsd && configuredUsd > 0) {
+      return roundForCurrency(
+        fromPkr(usdToPkrAmount(configuredUsd), currency),
+        currency
+      );
+    }
+
+    return defaultInternationalCharge(currency);
+  };
+
+  // The catalog is needed to read the per-product delivery charges
+  useEffect(() => {
+    if (products.length === 0) {
+      dispatch(fetchStorefrontProducts());
+    }
+  }, [dispatch, products.length]);
+
+  // A currency change (VPN flip or a pick in the header) invalidates a manually
+  // edited amount — otherwise a number typed in AED would be reused as USD.
+  useEffect(() => {
+    setIsOverseasChargeEdited(false);
+  }, [currency]);
+
+  // Keep the overseas charge in sync with the selected speed until the customer
+  // changes the field manually
+  useEffect(() => {
+    if (isPakistan || isOverseasChargeEdited) return;
+    setInternationalDeliveryCharge(String(getOverseasCharge(deliveryType)));
+  }, [
+    isPakistan,
+    isOverseasChargeEdited,
+    deliveryType,
+    configuredCharges.normal,
+    configuredCharges.urgent,
+    currency,
+  ]);
+
+  // Delivery charge of this order (PKR base): ₨300 Normal / ₨500 Urgent inside
+  // Pakistan, otherwise the USD courier charge entered for the customer.
+  const deliveryCharge = resolveDeliveryCharge({
+    isPakistan,
+    deliveryType,
+    internationalCharge: internationalDeliveryCharge,
+    currency,
+  });
+
+  const grandTotal = Math.max(0, subtotal - discountAmount) + deliveryCharge;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -39,6 +140,15 @@ export default function CheckoutForm() {
     if (cartItems.length === 0) {
       setErrorMessage('Your cart is empty.');
       return;
+    }
+
+    // Customers outside Pakistan must provide the courier charge for their country
+    if (!isPakistan) {
+      const enteredCharge = Number(internationalDeliveryCharge);
+      if (internationalDeliveryCharge.trim() === '' || isNaN(enteredCharge) || enteredCharge < 0) {
+        setErrorMessage('Please enter the delivery charge quoted for your country.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -55,6 +165,8 @@ export default function CheckoutForm() {
         postal_code: formData.postal_code || '54000',
         subtotal: subtotal,
         discount_amount: discountAmount,
+        delivery_type: deliveryType,
+        delivery_charge: deliveryCharge,
         grand_total: grandTotal,
         payment_method: paymentMethod === 'safepay' ? 'Safepay' : 'Cash on Delivery',
         coupon_code: couponCode || null,
@@ -239,6 +351,90 @@ export default function CheckoutForm() {
           </div>
         </div>
 
+        {/* 🚚 Delivery Method Selection Card */}
+        <div style={{ background: '#fff', padding: '28px', borderRadius: '8px', border: '1px solid #e2e2e2' }}>
+          <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '6px' }}>Delivery Method</h3>
+          <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '18px' }}>
+            {isPakistan
+              ? 'Flat delivery charges apply inside Pakistan (Normal ₨300 / Urgent ₨500). Urgent orders are dispatched on priority.'
+              : 'International orders are shipped through our courier partners. Adjust the delivery charge if a different rate was quoted for your country.'}
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {DELIVERY_TYPES.map((option) => (
+              <label
+                key={option.value}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  padding: '16px 20px',
+                  border: `2px solid ${deliveryType === option.value ? '#636830' : '#e2e2e2'}`,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  background: deliveryType === option.value ? '#fbfcf5' : '#fff'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input
+                    type="radio"
+                    name="delivery_type"
+                    value={option.value}
+                    checked={deliveryType === option.value}
+                    onChange={() => setDeliveryType(option.value)}
+                    style={{ accentColor: '#636830', width: '18px', height: '18px' }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#111' }}>{option.label}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '2px' }}>{option.description}</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#636830', whiteSpace: 'nowrap' }}>
+                  {formatAmount(
+                    resolveDeliveryCharge({
+                      isPakistan,
+                      deliveryType: option.value,
+                      internationalCharge: internationalDeliveryCharge,
+                      currency
+                    }),
+                    currency
+                  )}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          {/* 💵 Delivery charge field for customers outside Pakistan */}
+          {!isPakistan && (
+            <div style={{ marginTop: '18px', padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+                Delivery Charge ({getCurrencyLabel(currency)}) *
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                name="delivery_charge"
+                value={internationalDeliveryCharge}
+                onChange={(e) => {
+                  setInternationalDeliveryCharge(e.target.value);
+                  setIsOverseasChargeEdited(true);
+                }}
+                style={{ width: '100%', padding: '10px 14px', border: '1px solid #ccc', borderRadius: '4px' }}
+              />
+              <p style={{ fontSize: '0.75rem', color: '#666', margin: '6px 0 0 0' }}>
+                Deliveries outside Pakistan are charged in your local currency ({currencyName}).
+                Current courier charge for this order is {getOverseasCharge(deliveryType).toFixed(2)} {currency}
+                {configuredCharges.normal || configuredCharges.urgent
+                  ? ' (set on the product)'
+                  : ' (store default)'}
+                — adjust it if a different rate applies to your address.
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* 💳 Payment Method Selection Card */}
         <div style={{ background: '#fff', padding: '28px', borderRadius: '8px', border: '1px solid #e2e2e2' }}>
           <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '16px' }}>Payment Method</h3>
@@ -310,7 +506,7 @@ export default function CheckoutForm() {
           {cartItems.map((item) => (
             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
               <span>{item.name} x{item.quantity}</span>
-              <span style={{ fontWeight: 600 }}>₨{(item.price * item.quantity).toLocaleString()}.00</span>
+              <span style={{ fontWeight: 600 }}>{formatAmount(item.price * item.quantity, currency)}</span>
             </div>
           ))}
         </div>
@@ -319,19 +515,24 @@ export default function CheckoutForm() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem' }}>
           <span>Subtotal</span>
-          <span>₨{subtotal.toLocaleString()}.00</span>
+          <span>{formatAmount(subtotal, currency)}</span>
         </div>
 
         {discountAmount > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem', color: '#2b9348', fontWeight: 600 }}>
             <span>Coupon Discount ({couponCode})</span>
-            <span>-₨{discountAmount.toLocaleString()}.00</span>
+            <span>-{formatAmount(discountAmount, currency)}</span>
           </div>
         )}
 
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem' }}>
+          <span>Delivery ({getDeliveryTypeLabel(deliveryType)})</span>
+          <span>{formatAmount(deliveryCharge, currency)}</span>
+        </div>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '1.18rem', fontWeight: 800 }}>
           <span>Total Payable</span>
-          <span style={{ color: '#636830' }}>₨{grandTotal.toLocaleString()}.00</span>
+          <span style={{ color: '#636830' }}>{formatAmount(grandTotal, currency)}</span>
         </div>
 
         <button

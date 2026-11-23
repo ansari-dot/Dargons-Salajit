@@ -15,6 +15,13 @@ CREATE TABLE IF NOT EXISTS users (
   password VARCHAR(255) NOT NULL,
   role ENUM('customer', 'admin') DEFAULT 'customer',
   refresh_token TEXT NULL,
+  email_verified TINYINT(1) NOT NULL DEFAULT 1,
+  verification_code VARCHAR(64) NULL,
+  verification_expires_at DATETIME NULL,
+  verification_sent_at DATETIME NULL,
+  reset_token VARCHAR(64) NULL,
+  reset_expires_at DATETIME NULL,
+  reset_sent_at DATETIME NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -37,6 +44,9 @@ CREATE TABLE IF NOT EXISTS products (
   slug VARCHAR(255) NOT NULL UNIQUE,
   price DECIMAL(10,2) NOT NULL,
   old_price DECIMAL(10,2) NULL,
+  usd_price DECIMAL(10,2) NULL,
+  delivery_charge_usd DECIMAL(10,2) NULL,
+  urgent_delivery_charge_usd DECIMAL(10,2) NULL,
   vendor VARCHAR(100) DEFAULT 'Organica-1',
   size ENUM('Small', 'Medium', 'Large') DEFAULT 'Medium',
   rating DECIMAL(3,2) DEFAULT 5.00,
@@ -80,6 +90,7 @@ CREATE TABLE IF NOT EXISTS product_images (
 CREATE TABLE IF NOT EXISTS inventory (
   id INT AUTO_INCREMENT PRIMARY KEY,
   product_id INT UNIQUE NOT NULL,
+  variantId INT NULL,
   stock_quantity INT NOT NULL DEFAULT 0,
   reserved_quantity INT NOT NULL DEFAULT 0,
   reorder_level INT NOT NULL DEFAULT 10,
@@ -117,6 +128,8 @@ CREATE TABLE IF NOT EXISTS orders (
   discount_amount DECIMAL(10,2) DEFAULT 0.00,
   grand_total DECIMAL(10,2) NOT NULL,
   payment_method VARCHAR(50) DEFAULT 'Cash on Delivery',
+  delivery_type ENUM('normal', 'urgent') DEFAULT 'normal',
+  delivery_charge DECIMAL(10,2) DEFAULT 0.00,
   order_status ENUM('pending', 'processing', 'completed', 'cancelled') DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -242,4 +255,111 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_order_id (order_id),
   INDEX idx_tracker (tracker)
+);
+
+-- 17. BRANDS TABLE (Store Brand Showcase & Logo Management)
+CREATE TABLE IF NOT EXISTS brands (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  logo_url TEXT NOT NULL,
+  file_name VARCHAR(255) NULL,
+  file_size INT NULL,
+  mime_type VARCHAR(100) NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_brands_active (is_active)
+);
+
+-- 18. CALCULATOR PRODUCT OPTIONS TABLE (Private-label pricing per product / package / fill size)
+CREATE TABLE IF NOT EXISTS calculator_product_options (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  product_id INT NOT NULL,
+  package_type VARCHAR(50) NOT NULL,          -- Jar / Bottle / Pouch
+  fill_size INT NOT NULL,                     -- grams per unit, e.g. 20
+  strength VARCHAR(50) NULL,                  -- optional strength label
+  price_per_unit DECIMAL(10,2) NOT NULL,      -- cost per finished unit (PKR)
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  INDEX idx_cpo_lookup (product_id, package_type, fill_size, is_active)
+);
+
+-- 19. CALCULATOR PACKAGING TABLE (Packaging options & per-unit price for the cost calculator)
+CREATE TABLE IF NOT EXISTS calculator_packaging (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  packaging_type VARCHAR(50) NOT NULL,        -- Jar / Bottle / Pouch
+  price_per_unit DECIMAL(10,2) NOT NULL,      -- cost per packaging unit (PKR)
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_packaging_active (is_active)
+);
+
+-- 20. CALCULATOR REQUESTS TABLE (Saved private-label quotation requests)
+CREATE TABLE IF NOT EXISTS calculator_requests (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NULL,
+  product_id INT NULL,
+  product_name VARCHAR(255) NULL,
+  package_type VARCHAR(50) NULL,
+  fill_size INT NULL,
+  strength VARCHAR(50) NULL,
+  finished_quantity INT NULL,
+  packaging_id INT NULL,
+  packaging_name VARCHAR(255) NULL,
+  packaging_purchase_quantity INT NULL,
+  product_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  packaging_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  printing_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  setup_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  other_costs DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  shipping DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  discount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  estimated_project_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',   -- pending / approved / rejected
+  admin_note TEXT NULL,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL,
+  FOREIGN KEY (packaging_id) REFERENCES calculator_packaging(id) ON DELETE SET NULL,
+  INDEX idx_calc_req_status (status),
+  INDEX idx_calc_req_user (user_id)
+);
+
+-- 21. CERTIFICATIONS TABLE (Storefront certification records)
+CREATE TABLE IF NOT EXISTS certifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  issuer VARCHAR(255) NULL,
+  certificate_number VARCHAR(255) NULL,
+  description TEXT NULL,
+  image_url TEXT NULL,
+  document_url TEXT NULL,
+  issued_at DATE NULL,
+  expires_at DATE NULL,
+  display_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_certifications_active_order (is_active, display_order)
+);
+
+
+-- 22. TRADEMARKS TABLE (Storefront trademark records)
+CREATE TABLE IF NOT EXISTS trademarks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  subtitle VARCHAR(500) NULL,
+  image_url TEXT NULL,
+  document_url TEXT NULL,
+  display_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_trademarks_active_order (is_active, display_order)
 );

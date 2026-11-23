@@ -17,6 +17,9 @@ export default function NavDrawer() {
     { href: '/shop', label: 'Shop' },
     { href: '/gallery', label: 'Gallery' },
     { href: '/blogs', label: 'Blogs' },
+    { href: '/calculator', label: 'Calculator' },
+    { href: '/certificates', label: 'Certifications' },
+    { href: '/trademark', label: 'Trademark' },
     { href: '/contact', label: 'Contact Us' },
   ];
 

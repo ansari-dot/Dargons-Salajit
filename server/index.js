@@ -8,8 +8,10 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const initDb = require('./config/initDb');
+const { ensureLocalDatabase } = require('./config/ensureLocalDb');
 const errorHandler = require('./middleware/errorHandler');
 const safepayWebhook = require('./controllers/safepayWebhook');
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -33,6 +35,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+
+
 // ── Static Assets ────────────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'views')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -51,6 +55,15 @@ const wishlistRoutes  = require('./routes/wishlistRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const paymentRoutes   = require('./routes/paymentRoutes');
 const dealRoutes      = require('./routes/dealRoutes');
+const brandRoutes     = require('./routes/brandRoutes');
+const adminRoutes     = require('./routes/admin.route');
+const calculatorRoutes        = require('./routes/calculator.route');
+const calculatorRequestRoutes = require('./routes/calculatorRequest.route');
+const certificationRoutes = require('./routes/certificationRoutes');
+const trademarkRoutes = require('./routes/trademarkRoutes');
+const packagingRoutes = require('./routes/packagingRoutes');
+const router = require('./routes/location.js')
+
 
 // ── API Endpoints ─────────────────────────────────────────────────────────────
 app.use('/api/auth',      authRoutes);
@@ -66,10 +79,34 @@ app.use('/api/wishlist',  wishlistRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/payments',  paymentRoutes);
 app.use('/api/deals',     dealRoutes);
+app.use('/api/brands',    brandRoutes);
+app.use('/api/admin',     adminRoutes);
+app.use('/api/calculator', calculatorRoutes);
+app.use('/api/calculator/requests', calculatorRequestRoutes);
+app.use('/api/certifications', certificationRoutes);
+app.use('/api/trademarks', trademarkRoutes);
+app.use('/api/packaging', packagingRoutes);
+app.use('/api/location',router)
 
 // ── Health check ──────────────────────────────────────────────────────────────
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'OK', message: 'Palses API running' });
+app.get('/api/health', async (req, res) => {
+  const db = require('./config/db');
+  let database = 'connected';
+  let hint;
+
+  try {
+    await db.query('SELECT 1');
+  } catch (error) {
+    database = 'disconnected';
+    hint = 'Run `npm run db:start` inside the server folder to boot the portable database.';
+  }
+
+  res.status(200).json({
+    status: 'OK',
+    message: 'Palses API running',
+    database,
+    ...(hint && { hint }),
+  });
 });
 
 // ── Main HTML view ────────────────────────────────────────────────────────────
@@ -81,9 +118,23 @@ app.get('/', (req, res) => {
 app.use(errorHandler);
 
 // ── Initialize DB & Start Server ──────────────────────────────────────────────
-initDb().then(() => {
+// 1. Make sure a database is reachable (boots the portable local one if needed)
+// 2. Create / upgrade the schema — but never keep the API from starting
+const listen = () => {
   app.listen(PORT, () => {
     console.log(`✅ Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+    console.log(`Server is running on port : http://localhost:${PORT}`)
     console.log(`🔔 Safepay webhook endpoint: POST /api/webhooks/safepay`);
   });
-});
+};
+
+ensureLocalDatabase()
+  .then(() => initDb())
+  .then(() => console.log('✅ Database schema is ready'))
+  .catch((error) => {
+    console.error(`⚠️  Database not ready: ${error.message}`);
+    console.error('    Fix it with:  npm run db:start        (portable project-local database)');
+    console.error('    or install MySQL/MariaDB and match DB_USER / DB_PASSWORD in server/.env');
+    console.error('    The API starts anyway — database endpoints reply with a clear error.');
+  })
+  .finally(listen);

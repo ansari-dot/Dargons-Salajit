@@ -10,6 +10,9 @@ export interface ProductItem {
   slug: string;
   price: number;
   old_price?: number | null;
+  usd_price?: number | null;
+  delivery_charge_usd?: number | null;
+  urgent_delivery_charge_usd?: number | null;
   vendor?: string;
   size?: string;
   rating?: number;
@@ -33,6 +36,9 @@ export interface CreateProductPayload {
   category_id: number;
   price: number;
   old_price?: number;
+  usd_price?: number;
+  delivery_charge_usd?: number;
+  urgent_delivery_charge_usd?: number;
   vendor?: string;
   size?: string;
   rating?: number;
@@ -52,6 +58,9 @@ export interface UpdateProductPayload {
   category_id?: number;
   price?: number;
   old_price?: number;
+  usd_price?: number;
+  delivery_charge_usd?: number;
+  urgent_delivery_charge_usd?: number;
   vendor?: string;
   size?: string;
   rating?: number;
@@ -87,6 +96,23 @@ export const productApiService = {
   // Update Product
   update: async (id: number, payload: UpdateProductPayload) => {
     const response = await api.put(`/products/${id}`, payload);
+    return response.data.data || response.data;
+  },
+
+  /**
+   * Atomic relative stock change (POST /products/:id/stock).
+   * Sends only the DELTA — the server applies `stock_quantity = stock_quantity + delta`
+   * inside a transaction, so concurrent checkouts can never lose this update.
+   */
+  adjustStock: async (
+    id: number,
+    delta: number,
+    movementType: 'restock' | 'manual_adjustment' | 'cancellation_refund' = 'restock'
+  ) => {
+    const response = await api.post(`/products/${id}/stock`, {
+      delta,
+      movement_type: movementType,
+    });
     return response.data.data || response.data;
   },
 

@@ -57,9 +57,9 @@ class DashboardModel {
       LIMIT 5
     `);
 
-    // 6. Recent 5 Customers (using createdAt column for users table)
+    // 6. Recent 5 Customers (users table uses created_at; no `name` column exists)
     const [recentCustomersRows] = await db.query(`
-      SELECT id, COALESCE(name, CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))) as name, email, role, createdAt as joined_date
+      SELECT id, COALESCE(NULLIF(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')), ''), email, CONCAT('Customer #', id)) as name, email, role, COALESCE(created_at, NOW()) as joined_date
       FROM users
       ORDER BY id DESC
       LIMIT 5
@@ -92,7 +92,26 @@ class DashboardModel {
       LIMIT 5
     `);
 
-    // 9. Sales Overview Trend (Daily or Monthly)
+    // 9. Top Selling Products
+    const [topProductRows] = await db.query(`
+      SELECT
+        p.id,
+        p.name,
+        p.main_image,
+        c.name as category,
+        COALESCE(SUM(oi.quantity), 0) as sold,
+        COALESCE(SUM(oi.total_price), 0) as revenue
+      FROM order_items oi
+      INNER JOIN orders o ON o.id = oi.order_id
+      INNER JOIN products p ON p.id = oi.product_id
+      LEFT JOIN categories c ON c.id = p.category_id
+      WHERE o.order_status != 'cancelled'
+      GROUP BY p.id, p.name, p.main_image, c.name
+      ORDER BY sold DESC, revenue DESC
+      LIMIT 5
+    `);
+
+    // 10. Sales Overview Trend (Daily or Monthly)
     const [salesTrendRows] = await db.query(`
       SELECT 
         DATE_FORMAT(created_at, '%b %d') as date,
@@ -115,6 +134,7 @@ class DashboardModel {
       recentOrders: recentOrdersRows,
       recentCustomers: recentCustomersRows,
       topLocations: locationRows,
+      topProducts: topProductRows,
       stockOverview: stockOverviewRows,
       salesTrend: salesTrendRows
     };

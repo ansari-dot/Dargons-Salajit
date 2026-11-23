@@ -1,7 +1,8 @@
 const { sendError } = require('../utils/responseHandler');
+const { isDisposableEmail } = require('../utils/disposableEmail');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,10}$/;
+const PHONE_REGEX = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{2,4}[-\s\.]?[0-9]{2,4}[-\s\.]?[0-9]{0,6}$/;
 const POSTAL_REGEX = /^[a-zA-Z0-9\s\-]{3,10}$/;
 
 const validateRegister = (req, res, next) => {
@@ -28,6 +29,9 @@ const validateRegister = (req, res, next) => {
 
   if (!email || !EMAIL_REGEX.test(email.trim())) {
     errors.push('A valid email address is required.');
+  } else if (isDisposableEmail(email)) {
+    // Block temp-mail providers (tempmail.org, mailinator, guerrillamail, …)
+    errors.push('Temporary or disposable email addresses are not allowed. Please use a permanent email address.');
   }
 
   if (!phone || !PHONE_REGEX.test(phone.trim())) {
@@ -76,7 +80,79 @@ const validateLogin = (req, res, next) => {
   next();
 };
 
+const validateVerifyEmail = (req, res, next) => {
+  const { email, code } = req.body;
+  const errors = [];
+
+  if (!email || !EMAIL_REGEX.test(String(email).trim())) {
+    errors.push('A valid email address is required.');
+  }
+
+  if (!code || !/^\d{6}$/.test(String(code).trim())) {
+    errors.push('The 6-digit verification code is required.');
+  }
+
+  if (errors.length > 0) {
+    return sendError(res, 'Verification Validation Error', 400, errors);
+  }
+
+  next();
+};
+
+const validateResendCode = (req, res, next) => {
+  const { email } = req.body;
+  const errors = [];
+
+  if (!email || !EMAIL_REGEX.test(String(email).trim())) {
+    errors.push('A valid email address is required.');
+  }
+
+  if (errors.length > 0) {
+    return sendError(res, 'Resend Validation Error', 400, errors);
+  }
+
+  next();
+};
+
+const validateForgotPassword = (req, res, next) => {
+  const { email } = req.body;
+  const errors = [];
+
+  if (!email || !EMAIL_REGEX.test(String(email).trim())) {
+    errors.push('A valid email address is required.');
+  }
+
+  if (errors.length > 0) {
+    return sendError(res, 'Forgot Password Validation Error', 400, errors);
+  }
+
+  next();
+};
+
+const validateResetPassword = (req, res, next) => {
+  const { token, password } = req.body;
+  const errors = [];
+
+  if (!token || typeof token !== 'string' || token.trim().length < 32) {
+    errors.push('A valid reset token is required.');
+  }
+
+  if (!password || typeof password !== 'string' || password.length < 6) {
+    errors.push('Password is required and must be at least 6 characters long.');
+  }
+
+  if (errors.length > 0) {
+    return sendError(res, 'Reset Password Validation Error', 400, errors);
+  }
+
+  next();
+};
+
 module.exports = {
   validateRegister,
-  validateLogin
+  validateLogin,
+  validateVerifyEmail,
+  validateResendCode,
+  validateForgotPassword,
+  validateResetPassword
 };
