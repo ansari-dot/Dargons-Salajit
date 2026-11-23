@@ -73,7 +73,7 @@ const Modal: React.FC<{
 }> = ({ title, onClose, footer, children }) => (
   <div className="pt-backdrop">
     <div className="pt-modal">
-      <div className="pt-modal__head">
+      <div className="pt-modal__head admin-form-header">
         <h3 className="pt-modal__title">{title}</h3>
         <button type="button" className="pt-modal__close" onClick={onClose} aria-label="Close">
           <X />

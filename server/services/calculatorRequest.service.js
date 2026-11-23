@@ -62,9 +62,9 @@ const createCalculatorRequest = async (data) => {
                 if (
                     (!isIntegerString && !isIntegerNumber) ||
                     !Number.isSafeInteger(purchasedQuantity) ||
-                    purchasedQuantity <= 0
+                    purchasedQuantity < 0
                 ) {
-                    throw new Error(`${item.packaging_name} purchased quantity must be a positive whole number.`);
+                    throw new Error(`${item.packaging_name} purchased quantity must be a nonnegative whole number.`);
                 }
 
                 packagingBreakdown.push({
@@ -110,7 +110,7 @@ const createCalculatorRequest = async (data) => {
         packageType: firstPackagingItem?.type || null,
         packagingId: firstPackagingItem?.packagingId || null,
         packagingName: firstPackagingItem?.name || null,
-        packagingPurchaseQuantity: firstPackagingItem?.purchasedQuantity || null,
+        packagingPurchaseQuantity: firstPackagingItem?.purchasedQuantity ?? null,
         productCost: summary.filledProductCost ?? 0,
         packagingCost: summary.packagingInventoryCost ?? 0,
         printingCost: summary.printingCost ?? normalizeCost(additionalCosts.printingCost),

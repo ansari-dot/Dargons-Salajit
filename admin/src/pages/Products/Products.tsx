@@ -571,7 +571,7 @@ export const ProductsPage: React.FC = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 space-y-5 my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="admin-form-header -mx-6 -mt-6 flex items-center justify-between rounded-t-2xl px-6 py-4">
               <h3 className="text-base font-bold text-slate-900">
                 {editingProduct ? 'Edit Product SKU & Details' : 'Add New Product to Store'}
               </h3>

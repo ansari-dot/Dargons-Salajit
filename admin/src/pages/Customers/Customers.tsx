@@ -434,7 +434,7 @@ export const CustomersPage: React.FC = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100">
-            <div className="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+            <div className="admin-form-header px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-blue-600" />
                 <h3 className="font-bold text-slate-900 text-sm">Add New Customer Account</h3>

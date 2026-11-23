@@ -86,7 +86,7 @@ export const UploadBrandPage: React.FC = () => {
         {/* ── Brand Information form ── */}
         <Card className="lg:col-span-2 p-5 sm:p-6">
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-            <div>
+            <div className="admin-form-header -mx-5 -mt-5 rounded-t-xl px-5 py-4 sm:-mx-6 sm:-mt-6 sm:px-6">
               <h2 className="text-[15px] font-bold text-slate-900 tracking-tight">Brand Information</h2>
               <p className="text-xs text-slate-400 mt-0.5">Fill in the details below to add a new brand.</p>
             </div>

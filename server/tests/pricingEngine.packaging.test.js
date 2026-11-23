@@ -142,6 +142,16 @@ test('manual purchase below MOQ returns quotation-only pricing and breakdown', a
   assert.equal(item.totalCost, null);
 });
 
+test('zero purchased packaging quantity is accepted and returns quotation-only pricing', async () => {
+  const result = await calculate(300, 0);
+  const item = result.packagingBreakdown[0];
+
+  assert.equal(result.pricingAvailable, false);
+  assert.equal(item.purchasedQuantity, 0);
+  assert.equal(item.shortBy, 300);
+  assert.equal(item.unitPrice, null);
+});
+
 test('purchase above the highest configured slab redirects to quotation', async () => {
   const result = await calculate(300, 6000);
   const item = result.packagingBreakdown[0];
@@ -153,10 +163,10 @@ test('purchase above the highest configured slab redirects to quotation', async 
 });
 
 test('invalid manual packaging quantities are rejected instead of rounded or defaulted', async () => {
-  for (const quantity of ['', 'text', 0, -1, 1.5, '1.5', Number.MAX_SAFE_INTEGER + 1]) {
+  for (const quantity of ['', 'text', -1, 1.5, '1.5', Number.MAX_SAFE_INTEGER + 1]) {
     await assert.rejects(
       calculate(300, quantity),
-      /purchased quantity must be a positive whole number/i
+      /purchased quantity must be a nonnegative whole number/i
     );
   }
 });

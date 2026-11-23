@@ -11,8 +11,8 @@ const parsePurchasedQuantity = (value, packagingName) => {
   const isIntegerNumber = typeof value === 'number' && Number.isSafeInteger(value);
   const quantity = Number(value);
 
-  if ((!isIntegerString && !isIntegerNumber) || !Number.isSafeInteger(quantity) || quantity <= 0) {
-    throw new Error(`${packagingName} purchased quantity must be a positive whole number.`);
+  if ((!isIntegerString && !isIntegerNumber) || !Number.isSafeInteger(quantity) || quantity < 0) {
+    throw new Error(`${packagingName} purchased quantity must be a nonnegative whole number.`);
   }
 
   return quantity;
