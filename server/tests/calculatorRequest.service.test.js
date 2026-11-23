@@ -89,7 +89,7 @@ test('unpriced quotation does not persist client-provided totals', async () => {
   assert.equal(persistedData.configurationSnapshot.calculation.pricingAvailable, false);
 });
 
-test('zero product quantity saves a packaging quote without product calculation', async () => {
+test('zero product and packaging quantities save a packaging quote without product calculation', async () => {
   let persistedData;
   db.query = async (_sql, params) => {
     assert.deepEqual(params, [1, 7]);
@@ -114,16 +114,16 @@ test('zero product quantity saves a packaging quote without product calculation'
     productName: 'Shilajit Resin',
     finishedQuantity: 0,
     selectedPackagingIds: [7],
-    packagingPurchases: { 7: '200' },
+    packagingPurchases: { 7: '0' },
     configurationSnapshot: { packagingOnly: true },
   });
 
   assert.equal(persistedData.productCost, 0);
   assert.equal(persistedData.packagingName, 'Spoon');
-  assert.equal(persistedData.packagingPurchaseQuantity, 200);
+  assert.equal(persistedData.packagingPurchaseQuantity, 0);
   assert.equal(persistedData.configurationSnapshot.packagingOnly, true);
   assert.equal(persistedData.configurationSnapshot.calculation.pricingAvailable, false);
-  assert.equal(persistedData.configurationSnapshot.packagingBreakdown[0].remainingQuantity, 200);
+  assert.equal(persistedData.configurationSnapshot.packagingBreakdown[0].remainingQuantity, 0);
 });
 
 test('zero product quantity saves bulk quote items without product calculation', async () => {
@@ -152,4 +152,20 @@ test('zero product quantity saves bulk quote items without product calculation',
   assert.equal(persistedData.productCost, 0);
   assert.equal(persistedData.configurationSnapshot.bulkOrderItems[0].quantity, 50);
   assert.equal(persistedData.configurationSnapshot.calculation.pricingAvailable, false);
+});
+
+test('calculator request model persists zero quantities', async () => {
+  let insertedValues;
+  db.query = async (_sql, values) => {
+    insertedValues = values;
+    return [{ insertId: 16 }];
+  };
+
+  await CalculatorRequestModel.createRequest({
+    finishedQuantity: 0,
+    packagingPurchaseQuantity: 0,
+  });
+
+  assert.equal(insertedValues[10], 0);
+  assert.equal(insertedValues[13], 0);
 });

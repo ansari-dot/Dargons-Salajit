@@ -225,6 +225,21 @@
   box-shadow: 0 0 0 3px rgba(79, 107, 30, 0.14);
 }
 
+.cost-calc-field__control--error,
+.cost-calc-field__control--error:focus-within {
+  border-color: #c62828;
+  box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.12);
+}
+
+.cost-calc-field__error,
+.cost-calc-inline-error {
+  display: block;
+  margin: 5px 0 0;
+  color: #c62828;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
 .cost-calc-field__input,
 .cost-calc-field__select {
   flex: 1 1 auto;
@@ -502,6 +517,10 @@
 }
 
 .cost-calc-qty-input:focus { border-color: var(--cc-green); outline: none; box-shadow: 0 0 0 3px rgba(79, 107, 30, 0.14); }
+.cost-calc-qty-input--error,
+.cost-calc-qty-input--error:focus { border-color: #c62828; box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.12); }
+.cost-calc-qty-field { display: flex; flex-direction: column; align-items: flex-start; }
+.cost-calc-qty-field .cost-calc-inline-error { max-width: 180px; font-size: 0.65rem; }
 
 .cost-calc-empty-note { padding: 16px; text-align: center; color: var(--cc-muted); font-size: 0.77rem; border: 1px dashed #d9dccf; border-radius: 8px; }
 
@@ -1285,6 +1304,13 @@
   line-height: 1.45;
 }
 .cost-calc-note__item--muted { color: #626957; }
+.cost-calc-note__item--inventory {
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--cc-green);
+  color: #fff;
+}
 .cost-calc-note__badge {
   display: inline-flex;
   flex: 0 0 17px;
@@ -1299,6 +1325,7 @@
   font-weight: 700;
 }
 .cost-calc-note__badge--muted { background: #edf0e7; color: #68705c; }
+.cost-calc-note__badge--inventory { background: rgba(255, 255, 255, 0.18); color: #fff; }
 
 .cost-calc-quote-notice {
   margin: 0 0 18px;

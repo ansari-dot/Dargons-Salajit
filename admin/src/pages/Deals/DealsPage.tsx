@@ -318,7 +318,7 @@ export const DealsPage: React.FC = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="admin-form-header -mx-6 -mt-6 flex items-center justify-between rounded-t-2xl px-6 py-4">
               <h3 className="text-base font-bold text-slate-900">
                 {editingDeal ? 'Edit Deal of the Day' : 'Create New Deal'}
               </h3>

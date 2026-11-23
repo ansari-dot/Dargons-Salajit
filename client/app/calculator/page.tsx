@@ -7,7 +7,6 @@ import { addToCart, addToCartDb } from '@/lib/redux/slices/cartSlice';
 import { useAppDispatch } from '@/lib/redux/hooks';
 import { formatAmountWithRate } from '@/lib/utils/currency';
 import { resolveBackendImageUrl } from '@/lib/utils/image';
-import { useToast } from '@/components/ui/Toast';
 import './calculator.css';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -600,7 +599,6 @@ export default function CalculatorPage() {
   const router = useRouter();
   const [currency, setCurrency] = useState('PKR');
   const user = useAppSelector((state) => state.auth.user);
-  const toast = useToast();
 
   // ─────────────────────────────────────────────
   // Configuration Data Loaded from Backend
@@ -643,6 +641,7 @@ export default function CalculatorPage() {
   const [unavailablePackagingBreakdown, setUnavailablePackagingBreakdown] = useState<PackagingBreakdownItem[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [pricingUnavailableMsg, setPricingUnavailableMsg] = useState<string>('');
+  const [calculationError, setCalculationError] = useState('');
   const requestSeq = useRef<number>(0);
 
   // ─────────────────────────────────────────────
@@ -765,11 +764,23 @@ export default function CalculatorPage() {
     setSelectedAlternatives(initialAltChoices);
     setPurchasedQuantities({});
     setPricingUnavailableMsg('');
+    setCalculationError('');
     setResult(null);
     setUnavailablePackagingBreakdown([]);
   }, [productId, rules]);
 
   const currentProduct = products.find((p) => p.id === productId) || products[0];
+  const finishedQuantity = Number(finishedQty);
+  const finishedQuantityMoq = currentProduct?.id === productId
+    ? Math.max(0, Math.ceil(Number(currentProduct.moq) || 0))
+    : 0;
+  const finishedQuantityError = finishedQty.trim() === '' || finishedQuantity === 0
+    ? ''
+    : !Number.isInteger(finishedQuantity) || finishedQuantity < 0
+      ? 'Enter a positive whole number, or 0 to request a packaging quotation.'
+      : finishedQuantityMoq > 0 && finishedQuantity < finishedQuantityMoq
+        ? `Minimum order quantity is ${finishedQuantityMoq.toLocaleString()}. Enter at least ${finishedQuantityMoq.toLocaleString()}.`
+        : '';
 
   const currentFills = productOptions.filter(
     (o) => o.product_id === productId && o.option_type === 'fill_size'
@@ -928,18 +939,26 @@ export default function CalculatorPage() {
   const formatSummaryAmount = (amount: number | null) =>
     amount === null ? 'Quote required' : formatAmount(amount, currency);
 
-  const getInvalidPackagingPurchase = () => {
+  const getInvalidPackagingPurchase = (): { id: number; name: string } | null => {
     const selectedIds = new Set(getSelectedPackagingIds().map(String));
     for (const [packagingId, rawQuantity] of Object.entries(purchasedQuantities)) {
       if (!selectedIds.has(packagingId)) continue;
 
       const quantity = rawQuantity.trim();
-      if (!/^\d+$/.test(quantity) || !Number.isSafeInteger(Number(quantity)) || Number(quantity) <= 0) {
+      if (!/^\d+$/.test(quantity) || !Number.isSafeInteger(Number(quantity))) {
         const item = activeRules.find((rule) => rule.packaging_id === Number(packagingId));
-        return item?.packaging_name || 'Packaging';
+        return { id: Number(packagingId), name: item?.packaging_name || 'Packaging' };
       }
     }
     return null;
+  };
+  const getPackagingPurchaseError = (packagingId: number) => {
+    const rawQuantity = purchasedQuantities[packagingId];
+    if (rawQuantity === undefined) return '';
+    const quantity = rawQuantity.trim();
+    return /^\d+$/.test(quantity) && Number.isSafeInteger(Number(quantity))
+      ? ''
+      : 'Enter a nonnegative whole number.';
   };
 
   // Build payload for authoritative backend calculation
@@ -979,11 +998,11 @@ export default function CalculatorPage() {
   const handleCalculate = async () => {
     const quantity = Number(finishedQty);
     if (!productId) {
-      toast.error('Select a product to calculate costs.', 'Calculation failed');
+      setCalculationError('Select a product to calculate costs.');
       return;
     }
-    if (!Number.isInteger(quantity) || quantity < 0) {
-      toast.error('Finished quantity must be a positive whole number.', 'Calculation failed');
+    if (finishedQuantityError) {
+      setCalculationError(finishedQuantityError);
       return;
     }
     if (quantity === 0) {
@@ -991,6 +1010,7 @@ export default function CalculatorPage() {
       setResult(null);
       setUnavailablePackagingBreakdown([]);
       setPricingUnavailableMsg('');
+      setCalculationError('');
       setIsCalculating(false);
       return;
     }
@@ -998,12 +1018,12 @@ export default function CalculatorPage() {
     if (invalidPackaging) {
       requestSeq.current++;
       setIsCalculating(false);
-      toast.error(`${invalidPackaging} purchased quantity must be a positive whole number.`, 'Calculation failed');
       return;
     }
 
     setIsCalculating(true);
     setPricingUnavailableMsg('');
+    setCalculationError('');
 
     const seq = ++requestSeq.current;
 
@@ -1036,16 +1056,15 @@ export default function CalculatorPage() {
         const message = [json.message, json.error].find(
           (value): value is string => typeof value === 'string' && value.trim().length > 0
         );
-        toast.error(
-          message || 'The calculator could not complete the calculation. Please review your inputs and try again.',
-          'Calculation failed'
+        setCalculationError(
+          message || 'The calculator could not complete the calculation. Please review your inputs and try again.'
         );
       }
     } catch {
       if (seq !== requestSeq.current) return;
       setResult(null);
       setUnavailablePackagingBreakdown([]);
-      toast.error('Unable to connect to the server.', 'Connection error');
+      setCalculationError('Unable to connect to the server.');
     } finally {
       if (seq === requestSeq.current) {
         setIsCalculating(false);
@@ -1059,11 +1078,12 @@ export default function CalculatorPage() {
 
     const scheduledRequest = ++requestSeq.current;
     const qty = Number(finishedQty);
-    if (!productId || !Number.isInteger(qty) || qty <= 0) {
+    if (!productId || !Number.isInteger(qty) || qty <= 0 || finishedQuantityError) {
       requestSeq.current++;
       setResult(null);
       setUnavailablePackagingBreakdown([]);
       setPricingUnavailableMsg('');
+      setCalculationError('');
       setIsCalculating(false);
       return;
     }
@@ -1071,19 +1091,12 @@ export default function CalculatorPage() {
     const invalidPackaging = getInvalidPackagingPurchase();
     if (invalidPackaging) {
       setIsCalculating(false);
-      const timer = setTimeout(() => {
-        if (requestSeq.current === scheduledRequest) {
-          toast.error(`${invalidPackaging} purchased quantity must be a positive whole number.`, 'Calculation failed');
-        }
-      }, 350);
-      return () => {
-        clearTimeout(timer);
-        requestSeq.current++;
-      };
+      return;
     }
 
     setIsCalculating(true);
     setPricingUnavailableMsg('');
+    setCalculationError('');
     const timer = setTimeout(() => {
       if (requestSeq.current === scheduledRequest) {
         handleCalculate();
@@ -1109,6 +1122,7 @@ export default function CalculatorPage() {
     otherCosts,
     shipping,
     discounts,
+    finishedQuantityError,
   ]);
 
   // Save Configuration (Section 15)
@@ -1251,7 +1265,7 @@ export default function CalculatorPage() {
     if (Number(finishedQty) === 0) {
       const invalidPackaging = getInvalidPackagingPurchase();
       if (invalidPackaging) {
-        setQuoteFeedback(`${invalidPackaging} purchased quantity must be a positive whole number.`);
+        setQuoteFeedback(`${invalidPackaging.name} purchased quantity must be a nonnegative whole number.`);
         return;
       }
     }
@@ -1373,19 +1387,29 @@ export default function CalculatorPage() {
                   <label className="cost-calc-field__label" htmlFor="cc-finished-qty">
                     Finished Quantity ({currentProduct?.unit_type || 'units'})
                   </label>
-                  <div className="cost-calc-field__control">
+                  <div className={`cost-calc-field__control${finishedQuantityError || calculationError ? ' cost-calc-field__control--error' : ''}`}>
                     <input
                       id="cc-finished-qty"
                       type="number"
                       min={0}
-                      className="cost-calc-field__input"
+                      className={`cost-calc-field__input${finishedQuantityError || calculationError ? ' cost-calc-field__input--error' : ''}`}
+                      aria-invalid={Boolean(finishedQuantityError || calculationError)}
+                      aria-describedby={finishedQuantityError || calculationError ? 'cc-finished-qty-error' : undefined}
                       value={finishedQty}
-                      onChange={(e) => setFinishedQty(e.target.value)}
+                      onChange={(e) => {
+                        setFinishedQty(e.target.value);
+                        setCalculationError('');
+                      }}
                     />
                     <span className="cost-calc-field__suffix">
                       {productId === 1 ? 'jars' : (productId === 2 ? 'bottles' : (productId === 3 ? 'capsules' : 'blisters'))}
                     </span>
                   </div>
+                  {(finishedQuantityError || calculationError) && (
+                    <p className="cost-calc-field__error" id="cc-finished-qty-error" role="alert">
+                      {finishedQuantityError || calculationError}
+                    </p>
+                  )}
                 </div>
 
                 {/* Product 1: Resin Fill Size */}
@@ -1693,20 +1717,29 @@ export default function CalculatorPage() {
                           <tr>
                             <td>{item.suggestedQuantity}</td>
                             <td>
-                              <input
-                                type="number"
-                                min={0}
-                                className="cost-calc-qty-input"
-                                value={purchasedQuantities[item.packagingId] ?? item.purchasedQuantity}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setPurchasedQuantities((prev) => ({
-                                    ...prev,
-                                    [item.packagingId]: val,
-                                  }));
-                                  setPricingUnavailableMsg('');
-                                }}
-                              />
+                              <div className="cost-calc-qty-field">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className={`cost-calc-qty-input${getPackagingPurchaseError(item.packagingId) ? ' cost-calc-qty-input--error' : ''}`}
+                                  aria-invalid={Boolean(getPackagingPurchaseError(item.packagingId))}
+                                  aria-describedby={getPackagingPurchaseError(item.packagingId) ? `cc-packaging-error-${item.packagingId}` : undefined}
+                                  value={purchasedQuantities[item.packagingId] ?? item.purchasedQuantity}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setPurchasedQuantities((prev) => ({
+                                      ...prev,
+                                      [item.packagingId]: val,
+                                    }));
+                                    setPricingUnavailableMsg('');
+                                  }}
+                                />
+                                {getPackagingPurchaseError(item.packagingId) && (
+                                  <span className="cost-calc-inline-error" id={`cc-packaging-error-${item.packagingId}`} role="alert">
+                                    {getPackagingPurchaseError(item.packagingId)}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td>{item.usedQuantity}</td>
                             <td className={item.remainingQuantity > 0 ? 'cost-calc-pkg-rem--ok' : ''}>
@@ -1773,21 +1806,30 @@ export default function CalculatorPage() {
                       </div>
                       <div className="cost-calc-card__row">
                         <span style={{ color: '#666' }}>Purchased Quantity:</span>
-                        <input
-                          type="number"
-                          min={0}
-                          className="cost-calc-qty-input"
-                          style={{ width: '85px', height: '30px' }}
-                          value={purchasedQuantities[item.packagingId] ?? item.purchasedQuantity}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setPurchasedQuantities((prev) => ({
-                              ...prev,
-                              [item.packagingId]: val,
-                            }));
-                            setPricingUnavailableMsg('');
-                          }}
-                        />
+                        <div className="cost-calc-qty-field">
+                          <input
+                            type="number"
+                            min={0}
+                            className={`cost-calc-qty-input${getPackagingPurchaseError(item.packagingId) ? ' cost-calc-qty-input--error' : ''}`}
+                            aria-invalid={Boolean(getPackagingPurchaseError(item.packagingId))}
+                            aria-describedby={getPackagingPurchaseError(item.packagingId) ? `cc-packaging-card-error-${item.packagingId}` : undefined}
+                            style={{ width: '85px', height: '30px' }}
+                            value={purchasedQuantities[item.packagingId] ?? item.purchasedQuantity}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setPurchasedQuantities((prev) => ({
+                                ...prev,
+                                [item.packagingId]: val,
+                              }));
+                              setPricingUnavailableMsg('');
+                            }}
+                          />
+                          {getPackagingPurchaseError(item.packagingId) && (
+                            <span className="cost-calc-inline-error" id={`cc-packaging-card-error-${item.packagingId}`} role="alert">
+                              {getPackagingPurchaseError(item.packagingId)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="cost-calc-card__row">
                         <span style={{ color: '#666' }}>Used / Remaining:</span>
@@ -1838,8 +1880,8 @@ export default function CalculatorPage() {
               ))}
 
               <div className="cost-calc-note" style={{ marginTop: '16px' }}>
-                <div className="cost-calc-note__item cost-calc-note__item--muted">
-                  <span className="cost-calc-note__badge cost-calc-note__badge--muted">i</span>
+                <div className="cost-calc-note__item cost-calc-note__item--inventory">
+                  <span className="cost-calc-note__badge cost-calc-note__badge--inventory">i</span>
                   <span>
                     Remaining pieces are delivered with this order and can be kept for future batches. Packaging cost covers every purchased piece.
                   </span>
@@ -1914,7 +1956,7 @@ export default function CalculatorPage() {
                   type="button"
                   className="cost-calc-btn cost-calc-btn--primary"
                   onClick={handleCalculate}
-                  disabled={isCalculating || !Number.isInteger(Number(finishedQty)) || Number(finishedQty) <= 0}
+                  disabled={isCalculating || !Number.isInteger(Number(finishedQty)) || Number(finishedQty) <= 0 || Boolean(finishedQuantityError)}
                 >
                   {isCalculating
                     ? 'Updating Calculations…'

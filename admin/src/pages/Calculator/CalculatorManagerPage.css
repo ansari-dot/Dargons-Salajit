@@ -282,6 +282,7 @@
 }
 
 .cm-modal__head { display: flex; align-items: center; justify-content: space-between; }
+.cm-modal__head.admin-form-header { margin: -24px -24px 0; padding: 16px 24px; border-radius: 17px 17px 0 0; }
 .cm-modal__title { margin: 0; font-size: 1rem; font-weight: 700; color: var(--cm-ink); }
 
 .cm-modal__close { background: none; border: none; color: #94a3b8; cursor: pointer; padding: 0; display: flex; }
